@@ -159,12 +159,13 @@ def _parse_user(user_json: str) -> UserModel | None:
     Returns:
         UserModel или None при ошибке парсинга
     """
+    logger.debug(user_json)
     try:
         user_dict = json.loads(user_json)
         logger.debug(f"Parsing user data: {user_dict}")
         return UserModel(**user_dict)
     except Exception as e:
-        print(f"JSON parse error: {e}")
+        logger.error(f"JSON parse error: {e}")
         return None
 
 
