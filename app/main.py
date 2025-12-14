@@ -157,7 +157,8 @@ async def webhook_marz(
 app = Litestar(
     route_handlers=[
         webhook_marz,
-        bot_webhook
+        bot_webhook,
+        root
     ],
     debug=True,
     dependencies={
