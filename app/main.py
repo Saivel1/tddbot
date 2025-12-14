@@ -45,16 +45,29 @@ async def lifespan(app: Litestar):
     await bot.set_webhook(url=webhook_url, drop_pending_updates=True)
     print(f"✅ Webhook установлен: {webhook_url}")
 
-    async with async_session_maker() as session:
-        asyncio.create_task(db_worker(redis_cli=redis, session=session))
-        asyncio.create_task(trial_activation_worker(redis_cli=redis, session=session))
-        asyncio.create_task(nightly_cache_refresh_worker(redis_cache=redis, session_maker=session))
-
-    asyncio.create_task(marzban_worker(redis_cli=redis))
+# ✅ Создаём долгоживущую сессию для воркеров
+    worker_session = async_session_maker()
+    
+    # ✅ СОХРАНЯЕМ ссылки на задачи
+    worker_tasks = [
+        asyncio.create_task(db_worker(redis_cli=redis, session=worker_session), name="db_worker"),
+        asyncio.create_task(trial_activation_worker(redis_cli=redis, session=worker_session), name="trial_worker"),
+        asyncio.create_task(nightly_cache_refresh_worker(redis_cache=redis, session_maker=async_session_maker), name="cache_worker"),
+        asyncio.create_task(marzban_worker(redis_cli=redis), name="marzban_worker"),
+    ]
+    print(f"✅ Workers started: {len(worker_tasks)}")
     
     
     yield
     
+     # Ждём завершения всех задач
+    await asyncio.gather(*worker_tasks, return_exceptions=True)
+    print("✅ Workers stopped")
+    
+    # Закрываем сессию воркеров
+    await worker_session.close()
+    print("✅ Worker session closed")
+
     # Cleanup
     await close_redis()
     print("✅ Redis disconnected")
