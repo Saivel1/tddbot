@@ -91,7 +91,14 @@ async def is_cached(
                 logger.info(f"User NOT FOUND in DB: user_id={user_id}")
                 return None
             
-            user_dict = user_data.as_dict()
+            user_dict = {
+                "id": user_data.id,
+                "user_id": user_data.user_id,
+                "username": user_data.username,
+                "trial_used": user_data.trial_used,
+                "subscription_end": user_data.subscription_end.isoformat() if user_data.subscription_end else None
+            }
+
             logger.debug(f"User data loaded: user_id={user_id}, fields={list(user_dict.keys())}")
 
             # Сериализуем
