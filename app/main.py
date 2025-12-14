@@ -64,7 +64,7 @@ async def lifespan(app: Litestar):
     print("✅ Redis disconnected")
     
     for wrk in worker_tasks:
-        await wrk.cancel()
+        wrk.cancel()
         print("✅ Worker stopped")
 
     
