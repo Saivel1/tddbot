@@ -456,6 +456,18 @@ async def trial_activation_worker(
                 json.dumps(data_marz, sort_keys=True, default=str)
             ) #type: ignore
             logger.debug(f"Отправили задачу в марзбан {data_marz}")
+
+            data_for_cache = {
+                "user_id": user_id,
+                "subscription_end": data_marz['expire'],
+                "trial_used": True
+            }
+
+            await redis_cli.set(
+                f"USER_DATA:{user_id}",
+                json.dumps(data_for_cache),
+                ex=7200
+            )
             
         except Exception as e:
             logger.error(f"❌ Ошибка: {e}")
@@ -577,12 +589,13 @@ async def marzban_worker(
                         json.dumps(db_op, sort_keys=True, default=str)
                     ) #type:ignore
 
+
                 # Данные?
-                await redis_cli.set(
-                    f"USER_DATA:{data['user_id']}",
-                    "",
-                    ex=7200
-                )
+                # await redis_cli.set(
+                #     f"USER_DATA:{data['user_id']}",
+                #     "",
+                #     ex=7200
+                # )
 
                 # Для тестов
                 return res
