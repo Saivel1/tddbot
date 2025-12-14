@@ -14,6 +14,8 @@ from midllewares.db import DatabaseMiddleware
 from db.database import async_session_maker, engine
 from db.models import Base
 from contextlib import asynccontextmanager
+import asyncio
+from misc.utils import (db_worker, marzban_worker, trial_activation_worker, nightly_cache_refresh_worker) 
 
 
 
@@ -42,6 +44,14 @@ async def lifespan(app: Litestar):
     webhook_url = f"{s.WEBHOOK_URL}"
     await bot.set_webhook(url=webhook_url, drop_pending_updates=True)
     print(f"✅ Webhook установлен: {webhook_url}")
+
+    async with async_session_maker() as session:
+        asyncio.create_task(db_worker(redis_cli=redis, session=session))
+        asyncio.create_task(trial_activation_worker(redis_cli=redis, session=session))
+        asyncio.create_task(nightly_cache_refresh_worker(redis_cache=redis, session_maker=session))
+
+    asyncio.create_task(marzban_worker(redis_cli=redis))
+    
     
     yield
     
