@@ -61,6 +61,7 @@ async def is_cached(
     # Если не force_refresh - пытаемся взять из кеша
     if not force_refresh:
         user = await redis_cache.get(user_str)
+        logger.debug(user)
         if user is not None:
             logger.info(f"Cache HIT: user_id={user_id}")
             return _parse_user(user)
@@ -78,6 +79,7 @@ async def is_cached(
             # Double-check (если не force_refresh)
             if not force_refresh:
                 user = await redis_cache.get(user_str)
+                logger.debug(user)
                 if user is not None:
                     logger.debug(f"Cache filled by another task: user_id={user_id}")
                     return _parse_user(user)
