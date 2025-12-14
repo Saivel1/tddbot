@@ -51,7 +51,7 @@ async def lifespan(app: Litestar):
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
-    print("✅ Database tables created")
+    print("✅ Database tables dropped")
     
     await bot.delete_webhook()
     await bot.session.close()
