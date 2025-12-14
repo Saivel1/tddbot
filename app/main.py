@@ -15,7 +15,7 @@ from db.database import async_session_maker, engine
 from db.models import Base
 from contextlib import asynccontextmanager
 import asyncio
-from misc.utils import (db_worker, marzban_worker, trial_activation_worker, nightly_cache_refresh_worker) 
+from misc.utils import (db_worker, marzban_worker, trial_activation_worker, nightly_cache_refresh_worker, pub_listner) 
 
 
 
@@ -54,6 +54,7 @@ async def lifespan(app: Litestar):
         asyncio.create_task(trial_activation_worker(redis_cli=redis, session=worker_session), name="trial_worker"),
         asyncio.create_task(nightly_cache_refresh_worker(redis_cache=redis, session_maker=async_session_maker), name="cache_worker"),
         asyncio.create_task(marzban_worker(redis_cli=redis), name="marzban_worker"),
+        asyncio.create_task(pub_listner(redis_cli=redis), name="pub_listner"),
     ]
     print(f"✅ Workers started: {len(worker_tasks)}")
     

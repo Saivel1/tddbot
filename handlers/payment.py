@@ -11,6 +11,8 @@ import json
 from bot_in import dp
 from aiogram import F
 
+from logger_setup import logger
+
 
 async def keyboard_build(order_url: str):
     to_pay = [InlineKeyboardButton(
@@ -50,6 +52,7 @@ async def payment_process(
     amount = int(callback.data.replace("pay_", "")) # type:ignore
     cache_pay = await is_cached_payment(redis_cache=redis_cache, user_id=user_id, amount=amount)
     
+    logger.debug(cache_pay)
     if not cache_pay:
         yoo = YooPay()
         try:

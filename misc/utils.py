@@ -176,6 +176,7 @@ async def cache_popular_pay_time(redis_cache: Redis, user_id: int) -> str | None
     Получить или создать платёж для популярной суммы (50₽)
     Возвращает payment_url или None если платёж в процессе создания
     """
+    
     pay_str = f"POP_PAY_CHOOSE:{user_id}"
     lock_key = f"POP_PAY_LOCK:{user_id}"
     
