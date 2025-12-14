@@ -23,20 +23,29 @@ import handlers.trial
 
 @asynccontextmanager
 async def lifespan(app: Litestar):
-    await bot.set_webhook(
-        url=s.WEBHOOK_URL,
-        drop_pending_updates=False
-    )
-    print(f"Webhook установлен: {s.WEBHOOK_URL}")
-    # async with engine.begin() as conn:
-    #     await conn.run_sync(Base.metadata.drop_all)
-    #     await conn.run_sync(Base.metadata.create_all)
+    """Lifecycle"""
+    
+    # ✅ Инициализируем Redis
+    from app.redis_client import init_redis, close_redis
+    
+    redis = await init_redis()
+    await redis.ping()  #type: ignore
+    print("✅ Redis connected")
+    
+    # Webhook setup
+    await bot.delete_webhook()
+    webhook_url = f"{s.WEBHOOK_URL}"
+    await bot.set_webhook(url=webhook_url, drop_pending_updates=True)
+    print(f"✅ Webhook установлен: {webhook_url}")
     
     yield
     
+    # Cleanup
+    await close_redis()
+    print("✅ Redis disconnected")
+    
     await bot.delete_webhook()
     await bot.session.close()
-    print("Бот остановлен")
 
 
 async def provide_redis() -> Redis: #type: ignore
