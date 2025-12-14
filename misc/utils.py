@@ -459,13 +459,13 @@ async def trial_activation_worker(
 
             data_for_cache = {
                 "user_id": user_id,
-                "subscription_end": data_marz['expire'],
+                "subscription_end": datetime.fromtimestamp(data_marz['expire']),
                 "trial_used": True
             }
 
             await redis_cli.set(
                 f"USER_DATA:{user_id}",
-                json.dumps(data_for_cache),
+                json.dumps(data_for_cache, default=str),
                 ex=7200
             )
             
