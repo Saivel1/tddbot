@@ -459,6 +459,7 @@ async def trial_activation_worker(
 
             data_for_cache = {
                 "user_id": user_id,
+                "username": user.username,
                 "subscription_end": datetime.fromtimestamp(data_marz['expire']),
                 "trial_used": True
             }
