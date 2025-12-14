@@ -37,7 +37,7 @@ async def trial_handler(
         "username": username
     }
 
-    if worker_exsists(redis_cli=redis_cache, worker="TRIAL_ACTIVATION", data=data): #sorted при преобразование по этому тип данных словарь
+    if await worker_exsists(redis_cli=redis_cache, worker="TRIAL_ACTIVATION", data=data): #sorted при преобразование по этому тип данных словарь
         await callback.message.edit_text( #type:ignore
             text="Пробный период в процессе активации. Ожидайте."
         )
