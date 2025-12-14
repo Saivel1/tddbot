@@ -59,6 +59,9 @@ async def lifespan(app: Litestar):
     
     
     yield
+
+    await close_redis()
+    print("✅ Redis disconnected")
     
     # Ждём завершения всех задач
     await asyncio.gather(*worker_tasks, return_exceptions=True)
@@ -67,10 +70,6 @@ async def lifespan(app: Litestar):
     # Закрываем сессию воркеров
     await worker_session.close()
     print("✅ Worker session closed")
-
-    # Cleanup
-    await close_redis()
-    print("✅ Redis disconnected")
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
