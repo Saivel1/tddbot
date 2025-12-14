@@ -12,12 +12,32 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import ValidationError
 from midllewares.db import DatabaseMiddleware
 from db.database import async_session_maker
+from contextlib import asynccontextmanager
+
 
 
 import handlers.start
 import handlers.instructions
 import handlers.payment
 import handlers.trial
+
+@asynccontextmanager
+async def lifespan(app: Litestar):
+    await bot.set_webhook(
+        url=s.WEBHOOK_URL,
+        drop_pending_updates=False
+    )
+    print(f"Webhook установлен: {s.WEBHOOK_URL}")
+    # async with engine.begin() as conn:
+    #     await conn.run_sync(Base.metadata.drop_all)
+    #     await conn.run_sync(Base.metadata.create_all)
+    
+    yield
+    
+    await bot.delete_webhook()
+    await bot.session.close()
+    print("Бот остановлен")
+
 
 async def provide_redis() -> Redis: #type: ignore
     """Production Redis provider"""
@@ -142,5 +162,6 @@ app = Litestar(
     debug=True,
     dependencies={
         "redis_cli": Provide(provide_redis),
-    },   
+    },
+    lifespan=[lifespan]
 )
