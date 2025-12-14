@@ -1,6 +1,6 @@
 from sqlalchemy.ext.asyncio import async_sessionmaker
 from aiogram import BaseMiddleware
-from app.redis_client import redis_client
+import app.redis_client as redis_module 
 
 class DatabaseMiddleware(BaseMiddleware):
     def __init__(self, session_maker: async_sessionmaker):
@@ -10,7 +10,12 @@ class DatabaseMiddleware(BaseMiddleware):
     async def __call__(self, handler, event, data):
         async with self.session_maker() as session:
             data["session"] = session
-            data["redis_cache"] = redis_client
+            redis_cli = redis_module.redis_client
+            data["redis_cache"]  = redis_cli
+
+            if redis_cli is None:
+                print("❌ ERROR: redis_client is None in middleware!")
+                
             try:
                 return await handler(event, data)
             except Exception:
