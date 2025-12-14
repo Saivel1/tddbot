@@ -11,7 +11,8 @@ from bot_in import bot, dp
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import ValidationError
 from midllewares.db import DatabaseMiddleware
-from db.database import async_session_maker
+from db.database import async_session_maker, engine
+from db.models import Base
 from contextlib import asynccontextmanager
 
 
@@ -32,6 +33,10 @@ async def lifespan(app: Litestar):
     await redis.ping()  #type: ignore
     print("✅ Redis connected")
     
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    print("✅ Database tables created")
+
     # Webhook setup
     await bot.delete_webhook()
     webhook_url = f"{s.WEBHOOK_URL}"
@@ -43,6 +48,10 @@ async def lifespan(app: Litestar):
     # Cleanup
     await close_redis()
     print("✅ Redis disconnected")
+
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+    print("✅ Database tables created")
     
     await bot.delete_webhook()
     await bot.session.close()
