@@ -60,7 +60,7 @@ async def lifespan(app: Litestar):
     
     yield
     
-     # Ждём завершения всех задач
+    # Ждём завершения всех задач
     await asyncio.gather(*worker_tasks, return_exceptions=True)
     print("✅ Workers stopped")
     

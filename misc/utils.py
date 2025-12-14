@@ -393,18 +393,20 @@ async def trial_activation_worker(
         
         _, message = result
         data = json.loads(message)
-        
+        logger.debug(f"Получили задачу {data}")
         try:
 
             repo = BaseRepository(session=session, model=User)
             user = await repo.get_one(user_id = int(data["user_id"]))
-            
+            logger.debug(f"Получили пользователя {user}")
             if not user:
                 user = await repo.create(
                     user_id = int(data['user_id'])
                 )
+                logger.debug(f"Создали пользователя {user}")
             
             if user.trial_used:
+                logger.debug(f"Это дубль задачи {user}")
                 # обновить кэш 
                 continue
 
@@ -412,6 +414,7 @@ async def trial_activation_worker(
             async with MarzbanClient() as client:
                 user_marz = await client.get_user(username=user_id)
             
+            logger.debug(f"Получили пользователя в Марзбан {user_marz}")
             sub_end_marz: int = 0
 
             if user_marz == 404:
@@ -444,11 +447,12 @@ async def trial_activation_worker(
             new_expire: datetime = max_val + timedelta(days=s.TRIAL_DAYS)
             data_marz['expire'] = int(new_expire.timestamp())
 
-
+            logger.debug(f"Получили данные для воркера {data_marz}")
             await redis_cli.lpush(
                 "MARZBAN",
                 json.dumps(data_marz, sort_keys=True, default=str)
             ) #type: ignore
+            logger.debug(f"Отправили задачу в марзбан {data_marz}")
             
         except Exception as e:
             logger.error(f"❌ Ошибка: {e}")
