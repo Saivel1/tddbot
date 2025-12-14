@@ -91,6 +91,8 @@ async def is_cached(
                 logger.info(f"User NOT FOUND in DB: user_id={user_id}")
                 return None
             
+            await session.refresh(user_data)
+
             user_dict = {
                 "id": user_data.id,
                 "user_id": user_data.user_id,

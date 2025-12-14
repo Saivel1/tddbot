@@ -6,5 +6,6 @@ engine = create_async_engine(
 )
 
 async_session_maker = async_sessionmaker(
-    bind=engine
+    bind=engine,
+    expire_on_commit=False
 )
