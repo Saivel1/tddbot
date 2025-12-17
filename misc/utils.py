@@ -712,6 +712,7 @@ async def db_worker(
                 if not user_id:
                     raise ValueError(f"{model.__name__} requires 'user_id' field")
                 
+                user_id = int(user_id)
                 existing = await repo.get_one(user_id=user_id)
                 
                 if existing is not None:
