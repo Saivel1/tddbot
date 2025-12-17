@@ -46,6 +46,7 @@ import handlers.start
 import handlers.instructions
 import handlers.payment
 import handlers.trial
+import handlers.sub_n_links
 
 @asynccontextmanager
 async def lifespan(app: Litestar):
