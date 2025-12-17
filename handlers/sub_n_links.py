@@ -38,7 +38,7 @@ async def sub_n_links(
                 return "??? Osibka"
             
         marz_links = user.get('links', [])
-        links = _parse_links(marz_links)
+        links = _parse_links(json.dumps(marz_links))
 
         if links is None:
             return "???"
