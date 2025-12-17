@@ -37,18 +37,20 @@ async def sub_n_links(
             if not isinstance(user, dict):
                 return "??? Osibka"
             
-        marz_links = user.get('links', [])
-        links = _parse_links(json.dumps(marz_links))
+        marz_links: list = user.get('links', [])
+        marz_link_set = set(marz_links)
+
+        links = _parse_links(json.dumps(marz_link_set))
 
         if links is None:
             return "???"
         
         await redis_cache.set(
             links_str,
-            json.dumps({
-                "user_id": user_id,
-                "links": marz_links
-            }, default=str)
+            json.dumps(
+                links.model_dump(),
+                default=str
+            )
         )
         
     await callback.message.edit_text( #type:ignore
