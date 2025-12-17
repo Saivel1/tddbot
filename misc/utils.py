@@ -665,6 +665,8 @@ async def db_worker(
     wrk_label = 'DB'
     cnt = 0
     
+    logger.info(f"🚀 DB Worker started (process_once={process_once})")
+    
     while True:
         # Проверка доступности БД
         while not await check_db_available(session):
@@ -676,24 +678,32 @@ async def db_worker(
                 cnt = 0
         
         # Берём задачу из очереди
+        logger.debug(f"⏳ Waiting for task from queue '{wrk_label}'...")
         result = await redis_cli.brpop(wrk_label, timeout=5) #type: ignore
         cnt = 0
         
         if not result:
             if process_once:
+                logger.debug("✅ No tasks, exiting (process_once=True)")
                 return None
             continue
         
         _, message = result
+        logger.info(f"📥 Received task: {message[:200]}...")  # Первые 200 символов
         
         try:
             data = json.loads(message)
+            logger.debug(f"📋 Parsed JSON, model={data.get('model')}, type={data.get('type')}")
             
             data = deserialize_data(data)
+            
             # Получаем модель
             model = MODEL_REGISTRY.get(data['model'])
             if not model:
+                logger.error(f"❌ Unknown model: {data['model']}")
                 raise ValueError(f"Unknown model: {data['model']}")
+            
+            logger.debug(f"✅ Model resolved: {model.__name__}")
             
             repo = BaseRepository(session=session, model=model)
             data_type: str = data['type'].lower()
@@ -703,19 +713,27 @@ async def db_worker(
                 k: v for k, v in data.items() 
                 if k not in ("model", "type", "filter")
             }
+            logger.debug(f"📦 DB data prepared: {list(db_data.keys())}")
             
             # Проверка существования для моделей с user_id
             if model in UNIQUE_USER_ID_MODELS:
+                logger.debug(f"🔍 Checking uniqueness for {model.__name__}")
+                
                 # ✅ ИСПРАВЛЕНО: Ищем user_id в data или в filter
                 user_id = data.get('user_id') or data.get('filter', {}).get('user_id')
                 
                 if not user_id:
+                    logger.error(f"❌ Missing user_id for {model.__name__}")
                     raise ValueError(f"{model.__name__} requires 'user_id' field")
                 
                 user_id = int(user_id)
+                logger.debug(f"🔎 Looking for existing record with user_id={user_id}")
+                
                 existing = await repo.get_one(user_id=user_id)
                 
                 if existing is not None:
+                    logger.debug(f"📌 Found existing record for user_id={user_id}")
+                    
                     # Получаем текущие данные из БД (без None)
                     current_data = {
                         k: v for k, v in existing.as_dict().items() 
@@ -728,8 +746,11 @@ async def db_worker(
                         if k != 'user_id'  # Исключаем user_id из сравнения
                     }
                     
+                    logger.debug(f"🔄 Comparing fields: {list(new_data.keys())}")
+                    
                     # ✅ ИСПРАВЛЕНО: Сравниваем только переданные поля
                     has_changes = False
+                    changed_fields = []
                     for key, new_value in new_data.items():
                         current_value = current_data.get(key)
                         
@@ -741,67 +762,83 @@ async def db_worker(
                         
                         if new_value != current_value:
                             has_changes = True
-                            break
+                            changed_fields.append(f"{key}: {current_value} → {new_value}")
+                    
+                    if changed_fields:
+                        logger.debug(f"📝 Detected changes: {', '.join(changed_fields)}")
                     
                     # Если нет изменений - пропускаем
                     if not has_changes:
-                        logger.debug(f"⏭️  Skipping duplicate for user_id={user_id}")
+                        logger.debug(f"⏭️  Skipping duplicate for user_id={user_id} (no changes)")
                         if process_once:
                             return 'skipped'
                         continue
                     
                     # Если это CREATE, но запись существует - превращаем в UPDATE
                     if data_type == "create":
-                        logger.debug(f"🔄 Converting CREATE to UPDATE for user_id={user_id}")
+                        logger.info(f"🔄 Converting CREATE → UPDATE for user_id={user_id}")
                         data_type = 'update'
                         data['filter'] = {'user_id': user_id}
                         # ✅ Убираем user_id из db_data для UPDATE
                         db_data = {k: v for k, v in db_data.items() if k != 'user_id'}
+                else:
+                    logger.debug(f"✨ No existing record found for user_id={user_id}")
             
             # Выполняем операцию
             if data_type == "create":
+                logger.info(f"➕ Creating {model.__name__} with data: {db_data}")
                 res = await repo.create(**db_data)
-                logger.debug(f"✅ Created {model.__name__}: {res}")
+                logger.info(f"✅ Created {model.__name__}: {res}")
                 result_type = "create"
 
                 if model == UserLinks:
-                    user_id:int = int(db_data["user_id"])
+                    user_id: int = int(db_data["user_id"])
+                    logger.debug(f"🔗 UserLinks created, fetching cache for user_id={user_id}")
+                    
                     links_cache = await repo.get_one(user_id=user_id)
                     if not links_cache:
-                        raise ValueError("Как-то не нашёл данные, прикинь, сам в ахуе")
+                        logger.error(f"❌ Failed to fetch UserLinks after creation for user_id={user_id}")
+                        raise ValueError(f"UserLinks not found after creation for user_id={user_id}")
                     
-
-                    pass
+                    logger.debug(f"✅ UserLinks cache fetched: {links_cache}")
+                    # TODO: здесь можно добавить логику кеширования
                 
             elif data_type == "update":
                 filter_data = data.get('filter', {})
                 
                 if not filter_data:
+                    logger.error("❌ Update requires 'filter' parameter")
                     raise ValueError("Update requires 'filter' parameter")
                 
                 # ✅ Для UPDATE user_id должен быть ТОЛЬКО в filter
                 update_data = {k: v for k, v in db_data.items() if k != 'user_id'}
                 
+                logger.info(f"🔄 Updating {model.__name__} where {filter_data} with {update_data}")
                 res = await repo.update(data=update_data, **filter_data)
-                logger.debug(f"✅ Updated {model.__name__}: {res} rows")
+                logger.info(f"✅ Updated {model.__name__}: {res} rows affected")
                 result_type = 'update'
             
             else:
+                logger.error(f"❌ Unknown operation type: {data_type}")
                 raise ValueError(f"Unknown operation type: {data_type}")
             
             if process_once:
+                logger.debug(f"✅ Task processed successfully, returning '{result_type}'")
                 return result_type
                 
         except Exception as e:
-            logger.error(f"❌ Ошибка: {e}")
+            logger.error(f"❌ Error processing task: {e}")
+            logger.error(f"📋 Failed message: {message}")
             import traceback
-            traceback.print_exc()
+            logger.error(f"🔍 Traceback:\n{traceback.format_exc()}")
             
+            logger.warning(f"♻️  Re-queuing failed task to front of queue")
             await redis_cli.lpush(wrk_label, message) #type: ignore
             
             if process_once:
                 raise
             
+            logger.debug("⏸️  Waiting 1 second before next task...")
             await asyncio.sleep(1)
 
 
