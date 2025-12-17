@@ -4,7 +4,7 @@ from keyboards.builder import SubMenu
 from sqlalchemy.ext.asyncio import AsyncSession
 from repositories.base import BaseRepository
 from db.models import User
-from misc.utils import is_cached
+from misc.utils import is_cached, to_link
 from redis.asyncio import Redis
 from bot_in import dp
 from aiogram import F
@@ -53,10 +53,12 @@ async def sub_n_links(
                 default=str
             )
         )
+
+    link_titles = await to_link({"links": links.links})
         
     await callback.message.edit_text( #type:ignore
         text='Something like link',
-        reply_markup=SubMenu.links_keyboard(links=links.links)
+        reply_markup=SubMenu.links_keyboard(links=link_titles) #type: ignore
     )
     
 

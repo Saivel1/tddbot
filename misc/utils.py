@@ -925,3 +925,23 @@ async def check_marzban_available() -> bool:
                 return res.status < 500
     except:
         return False
+    
+
+async def to_link(lst_data: dict):
+    from urllib.parse import unquote
+    links = lst_data.get("links")
+    if links is None:
+        return None
+    
+    titles = []
+    for link in links:
+        sta = link.find("#")
+        encoded = link[sta+1:]
+        text = unquote(encoded)
+        titles.append(text)
+    
+    sub_link = lst_data.get('subscription_url')
+    if sub_link is None:
+        return None
+
+    return titles
