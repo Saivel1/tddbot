@@ -465,6 +465,16 @@ async def trial_activation_worker(
                 "trial_used": True
             }
 
+            await redis_cli.lpush( 
+                "DB",
+                json.dumps({
+                    "user_id": user_id,
+                    "trial_used": True,
+                    "model": "User",
+                    "type": "create"
+                }, default=str, sort_keys=True)
+            ) #type: ignore
+
             await redis_cli.set(
                 f"USER_DATA:{user_id}",
                 json.dumps(data_for_cache, default=str),
