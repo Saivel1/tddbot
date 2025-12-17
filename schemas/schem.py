@@ -17,3 +17,8 @@ class CreateUserMarzbanModel(BaseModel):
     username: str
     id: str | None = None
     expire: int | None = None
+
+
+class UserLinksModel(BaseModel):
+    user_id: int
+    links: list[str]

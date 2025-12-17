@@ -1,21 +1,44 @@
+# Framework / web
 from litestar import Litestar, get, post, Request
 from litestar.exceptions import HTTPException
 from litestar.di import Provide
+
+# Bot / Telegram
 from aiogram import Bot, Dispatcher
 from aiogram.types import Update
+from bot_in import bot, dp
+from misc.bot_setup import SUB_EXPIRED_TEXT, SUB_WILL_EXPIRE
+
+# Config & logging
 from config import settings as s
 from logger_setup import logger
-import json
-from redis.asyncio import Redis
-from bot_in import bot, dp
+
+# Database / ORM
 from sqlalchemy.ext.asyncio import AsyncSession
-from pydantic import ValidationError
-from midllewares.db import DatabaseMiddleware
 from db.database import async_session_maker, engine
 from db.models import Base
-from contextlib import asynccontextmanager
+from midllewares.db import DatabaseMiddleware
+
+# Redis / cache
+from redis.asyncio import Redis
+
+# Validation / schemas
+from pydantic import ValidationError
+
+# Utils / workers
+from misc.utils import (
+    db_worker,
+    marzban_worker,
+    trial_activation_worker,
+    nightly_cache_refresh_worker,
+    pub_listner,
+)
+
+# Stdlib
+import json
 import asyncio
-from misc.utils import (db_worker, marzban_worker, trial_activation_worker, nightly_cache_refresh_worker, pub_listner) 
+from contextlib import asynccontextmanager
+
 
 
 
@@ -126,6 +149,13 @@ async def webhook_marz(
     request: Request,
     redis_cli: Redis
 ) -> dict:
+    """
+    Это функция просто роутинг и синхронизация между панелями
+    она принимает разные action'ы от одной панели и роутит
+    их в другую
+    """
+
+
     data = await request.json()
     if not data or not isinstance(data, list):
         logger.error(f"Invalid data format: {data}")
@@ -173,25 +203,40 @@ async def webhook_marz(
         "user_id": username,
         "expire": data[0]['expire']
     }
+    from_panel = first_item.get('subscription_url')
+
+    if "dns1" in from_panel:
+        wrk_data['panel'] = s.DNS2_URL
+    elif "dns2" in from_panel:
+        wrk_data['panel'] = s.DNS1_URL
+
 
     if action == 'user_created':
         wrk_data['id'] = data[0]["proxies"]["vless"]['id']
+        wrk_data['type'] = 'create'
         await redis_cli.lpush( #type: ignore
             "MARZBAN",
             json.dumps(wrk_data, sort_keys=True, default=str)
         )
 
     elif action == 'user_updated':
+        wrk_data['type'] = 'modify'
         await redis_cli.lpush( #type: ignore
             "MARZBAN",
             json.dumps(wrk_data, sort_keys=True, default=str)
         )    
 
-    # elif action == 'user_expired':
-    #     print('Отправить сообщение юзеру')
+    elif action == 'user_expired':
+        await bot.send_message(
+            chat_id=int(username),
+            text=SUB_EXPIRED_TEXT
+        )
         
-    # elif action == 'reached_days_left':
-    #     print('Отправить сообщение юзеру День остался')
+    elif action == 'reached_days_left':
+        await bot.send_message(
+            chat_id=int(username),
+            text=SUB_WILL_EXPIRE
+        )
 
     return {"ok": True}
 

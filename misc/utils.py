@@ -492,8 +492,8 @@ async def marzban_worker(
     username: str
     expire: int
     id: uuid from mazban like {"id": "aljfk-asfg-saadsg-g352", "protocol": "xtls-rs-fla"}
+    panel: в какую панель нужно отправить запрос
     """
-
 
     wrk_label = 'MARZBAN'
 
@@ -518,6 +518,8 @@ async def marzban_worker(
         data = json.loads(message)
         
         try:
+            if data.get('panel'): panel_url = data['panel']
+
             async with MarzbanClient(base_url=panel_url if panel_url else s.M_DIGITAL_URL) as client:
                 marz_data:dict = {}
 
@@ -750,6 +752,15 @@ async def db_worker(
                 res = await repo.create(**db_data)
                 logger.debug(f"✅ Created {model.__name__}: {res}")
                 result_type = "create"
+
+                if model == UserLinks:
+                    user_id:int = int(db_data["user_id"])
+                    links_cache = await repo.get_one(user_id=user_id)
+                    if not links_cache:
+                        raise ValueError("Как-то не нашёл данные, прикинь, сам в ахуе")
+                    
+
+                    pass
                 
             elif data_type == "update":
                 filter_data = data.get('filter', {})
