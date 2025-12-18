@@ -35,7 +35,7 @@ async def is_cached(
     redis_cache: Redis,
     user_id: int,
     session: AsyncSession,
-    force_refresh: bool = False  # Для ночного обновления
+    force_refresh: bool = False
 ) -> UserModel | None:
     """
     Получает данные пользователя из кеша или БД
@@ -56,41 +56,38 @@ async def is_cached(
     user_str = f"USER_DATA:{user_id}"
     lock_key = f"USER_DATA_LOCK:{user_id}"
 
-    logger.debug(f"is_cached called: user_id={user_id}, force_refresh={force_refresh}")
+    logger.debug(f"🔍 is_cached: user_id={user_id}, force_refresh={force_refresh}")
     
     # Если не force_refresh - пытаемся взять из кеша
     if not force_refresh:
         user = await redis_cache.get(user_str)
-        logger.debug(user)
         if user is not None:
-            logger.info(f"Cache HIT: user_id={user_id}")
+            logger.info(f"✅ Cache HIT: user_id={user_id}")
             return _parse_user(user)
-
-        logger.debug(f"Cache MISS: user_id={user_id}, acquiring lock")
+        logger.debug(f"⚠️  Cache MISS: user_id={user_id}")
     else:
-        logger.debug(f"Force refresh: user_id={user_id}, skipping cache check")
+        logger.debug(f"🔄 Force refresh: user_id={user_id}")
     
     # Нет кеша или force_refresh - берём lock
     acquired = await redis_cache.set(lock_key, "1", nx=True, ex=5)
     
     if acquired:
-        logger.debug(f"Lock ACQUIRED: user_id={user_id}")
+        logger.debug(f"🔒 Lock acquired: user_id={user_id}")
         try:
             # Double-check (если не force_refresh)
             if not force_refresh:
                 user = await redis_cache.get(user_str)
-                logger.debug(user)
                 if user is not None:
-                    logger.debug(f"Cache filled by another task: user_id={user_id}")
+                    logger.debug(f"✅ Cache filled by another task: user_id={user_id}")
                     return _parse_user(user)
             
             # Загружаем из БД
-            logger.debug(f"Loading from DB: user_id={user_id}")
+            logger.debug(f"📊 Loading from DB: user_id={user_id}")
             repo = BaseRepository(session=session, model=User)
             user_data = await repo.get_one(user_id=user_id)
             
             if not user_data:
-                logger.info(f"User NOT FOUND in DB: user_id={user_id}")
+                logger.warning(f"❌ User NOT FOUND in DB: user_id={user_id}")
                 return None
             
             await session.refresh(user_data)
@@ -103,96 +100,65 @@ async def is_cached(
                 "subscription_end": user_data.subscription_end.isoformat() if user_data.subscription_end else None
             }
 
-            logger.debug(f"User data loaded: user_id={user_id}, fields={list(user_dict.keys())}")
-
             # Сериализуем
             json_user_data = json.dumps(user_data.as_dict(), default=str)
             
             # Определяем TTL
-            # Ночное обновление: 25 часов (90000 сек)
-            # Первое обращение: 1 час (3600 сек)
             ttl = 90000 if force_refresh else 3600
             
             # Сохраняем в кеш
             await redis_cache.set(user_str, json_user_data, ex=ttl)
-            logger.info(
-                f"User cached: user_id={user_id}, "
-                f"ttl={ttl}s, "
-                f"source={'force_refresh' if force_refresh else 'cache_miss'}"
-            )
+            logger.info(f"💾 Cached: user_id={user_id}, ttl={ttl}s, source={'nightly' if force_refresh else 'miss'}")
             
             return _parse_user(json_user_data)
             
         except Exception as e:
-            logger.error(
-                f"DB error while loading user: user_id={user_id}, error={e}",
-                exc_info=True
-            )
+            logger.error(f"❌ DB error: user_id={user_id}, error={e}")
             return None
         finally:
-            # Освобождаем lock
             await redis_cache.delete(lock_key)
-            logger.debug(f"Lock RELEASED: user_id={user_id}")
+            logger.debug(f"🔓 Lock released: user_id={user_id}")
     else:
         # Другой task заполняет кеш, ждём его
-        logger.debug(f"Lock held by another task, waiting: user_id={user_id}")
-        for attempt in range(50):  # Максимум 5 секунд
+        logger.debug(f"⏳ Waiting for lock: user_id={user_id}")
+        for attempt in range(50):
             await asyncio.sleep(0.1)
             user = await redis_cache.get(user_str)
             if user is not None:
-                logger.debug(f"Cache filled while waiting (attempt {attempt+1}): user_id={user_id}")
+                logger.debug(f"✅ Cache ready (attempt {attempt+1}): user_id={user_id}")
                 return _parse_user(user)
         
-        # Если так и не дождались
-        logger.warning(
-            f"Timeout waiting for cache: user_id={user_id}, "
-            f"waited 5s, cache still empty"
-        )
+        logger.warning(f"⏱️  Timeout waiting for cache: user_id={user_id}")
         return None
 
 
 def _parse_user(user_json: str) -> UserModel | None:
-    """
-    Парсит JSON строку в UserModel
-    
-    Args:
-        user_json: JSON строка с данными пользователя
-    
-    Returns:
-        UserModel или None при ошибке парсинга
-    """
-    logger.debug(user_json)
+    """Парсит JSON строку в UserModel"""
     try:
         user_dict = json.loads(user_json)
-        logger.debug(f"Parsing user data: {user_dict}")
         return UserModel(**user_dict)
     except Exception as e:
-        logger.error(f"JSON parse error: {e}")
+        logger.error(f"❌ JSON parse error: {e}")
         return None
 
 
 async def cache_popular_pay_time(redis_cache: Redis, user_id: int) -> str | None:
-    """
-    Получить или создать платёж для популярной суммы (50₽)
-    Возвращает payment_url или None если платёж в процессе создания
-    """
+    """Получить или создать платёж для популярной суммы (50₽)"""
     
     pay_str = f"POP_PAY_CHOOSE:{user_id}"
     lock_key = f"POP_PAY_LOCK:{user_id}"
     
-    logger.debug(f"Entered function with {pay_str}")
-    logger.debug(f"Entered function with {lock_key}")
+    logger.debug(f"💰 Payment request: user_id={user_id}")
 
     # Проверяем кэш
     pay_data = await redis_cache.get(pay_str)
     
-    logger.debug(f"Pay data: {pay_data}")
     if pay_data is None:
         # Атомарно берём lock
         acquired = await redis_cache.set(lock_key, "1", nx=True, ex=60)
         
         if acquired:
-            logger.debug(f"Acquired data: {acquired}")
+            logger.debug(f"🔒 Payment lock acquired: user_id={user_id}")
             try:
                 # Double-check после получения lock
                 pay_data = await redis_cache.get(pay_str)
@@ -204,36 +170,37 @@ async def cache_popular_pay_time(redis_cache: Redis, user_id: int) -> str | None
                         'amount': 50,
                     }
                     
-                    # Публикуем в очередь (используем lpush вместо publish для гарантии)
-                    await redis_cache.lpush("PAYMENT_QUEUE", json.dumps(payment_data)) #type: ignore
-                    logger.debug(f"Отдали задачу {payment_data}")
+                    await redis_cache.lpush("PAYMENT_QUEUE", json.dumps(payment_data))  # type: ignore # type: ignore
+                    logger.info(f"📤 Payment queued: user_id={user_id}, amount=50₽")
                     
                     # Ждём обработки (максимум 10 секунд)
                     for _ in range(100):
                         await asyncio.sleep(0.1)
                         pay_data = await redis_cache.get(pay_str)
                         if pay_data:
+                            logger.debug(f"✅ Payment processed: user_id={user_id}")
                             break
                     
-                    logger.debug(f"Получили pay_data {pay_data}")
                     if pay_data is None:
-                        # Timeout - платёж в процессе создания
+                        logger.warning(f"⏱️  Payment timeout: user_id={user_id}")
                         return None
             finally:
-                # Освобождаем lock
                 await redis_cache.delete(lock_key)
-                logger.debug(f"Lock_Key удалён {lock_key}")
+                logger.debug(f"🔓 Payment lock released: user_id={user_id}")
         else:
             # Другой task создаёт платёж, ждём результата
+            logger.debug(f"⏳ Waiting for payment: user_id={user_id}")
             for _ in range(100):
                 await asyncio.sleep(0.1)
                 pay_data = await redis_cache.get(pay_str)
                 if pay_data:
                     break
 
-            logger.debug(f"Получили другой pay_data {pay_data}")
             if pay_data is None:
+                logger.warning(f"⏱️  Payment wait timeout: user_id={user_id}")
                 return None
+    else:
+        logger.debug(f"✅ Payment cache HIT: user_id={user_id}")
     
     # Парсим и возвращаем URL
     pay_res = json.loads(pay_data)
@@ -241,23 +208,19 @@ async def cache_popular_pay_time(redis_cache: Redis, user_id: int) -> str | None
 
 
 async def pub_listner(redis_cli: Redis):
-    """
-    Воркер для обработки платежей из очереди
-    Переименован в payment_worker для ясности, но оставлен старый name для обратной совместимости
-    """
+    """Воркер для обработки платежей из очереди"""
     yoo_handl = YooPay()
+    logger.info("🚀 Payment worker started")
     
     try:
         while True:
-            # brpop - только один воркер получит задачу
-            result = await redis_cli.brpop("PAYMENT_QUEUE", timeout=5) #type: ignore
+            result = await redis_cli.brpop("PAYMENT_QUEUE", timeout=5) # type: ignore # type: ignore
             
             if not result:
                 continue
             
             _, message = result
-            
-            logger.debug("Приняли заказ")
+            logger.debug("📥 Payment task received")
             
             try:
                 data = json.loads(message)
@@ -268,10 +231,11 @@ async def pub_listner(redis_cli: Redis):
                 # Проверяем что платёж ещё не создан (идемпотентность)
                 existing = await redis_cli.get(pay_str)
                 if existing:
-                    logger.debug(f"Платёж для {user_id} уже создан, пропускаем")
+                    logger.debug(f"⏭️  Payment exists: user_id={user_id}")
                     continue
                 
                 # Создаём платёж
+                logger.info(f"💳 Creating payment: user_id={user_id}, amount={amount}₽")
                 res = await yoo_handl.create_payment(
                     amount=amount,
                     email="saivel.mezencev1@gmail.com",
@@ -279,10 +243,9 @@ async def pub_listner(redis_cli: Redis):
                 )
                 
                 if res is None:
-                    # Ошибка создания - возвращаем задачу в очередь
-                    await redis_cli.lpush("PAYMENT_QUEUE", message) #type: ignore
-                    logger.debug(f"❌ Ошибка создания платежа для {user_id}, задача возвращена")
-                    await asyncio.sleep(5)  # Пауза перед retry
+                    logger.error(f"❌ Payment creation failed: user_id={user_id}")
+                    await redis_cli.lpush("PAYMENT_QUEUE", message) # type: ignore
+                    await asyncio.sleep(5)
                     continue
                 
                 # Сохраняем результат
@@ -290,17 +253,24 @@ async def pub_listner(redis_cli: Redis):
                     "payment_url": res[0],
                     "payment_id": res[1]
                 }
+
+                data_for_webhook = {
+                    "user_id": user_id,
+                    "amount": amount
+                }
+
+                web_wrk_label = f"YOO:{res[1]}"
                 await redis_cli.set(pay_str, json.dumps(data_for_load), ex=600)
-                logger.debug(f"✅ Платёж обработан! {user_id}")
+                await redis_cli.set(web_wrk_label, json.dumps(data_for_webhook), ex=700)
+                logger.info(f"✅ Payment created: user_id={user_id}, payment_id={res[1]}")
                 
             except Exception as e:
-                logger.error(f"❌ Ошибка обработки задачи: {e}")
-                # Возвращаем задачу в очередь
-                await redis_cli.lpush("PAYMENT_QUEUE", message) #type: ignore
+                logger.error(f"❌ Payment task error: {e}")
+                await redis_cli.lpush("PAYMENT_QUEUE", message) # type: ignore
                 await asyncio.sleep(5)
                 
     except asyncio.CancelledError:
-        logger.info("Payment worker остановлен")
+        logger.info("🛑 Payment worker stopped")
         raise
 
 
@@ -309,30 +279,27 @@ async def is_cached_payment(
     user_id: int,
     amount: int | None = None
 ) -> PayDataModel | None:
-    """
-    Проверить наличие платежа в кэше
-    amount=50 -> проверяет популярный платёж
-    amount=другое -> проверяет кастомный платёж
-    amount=None -> проверяет оба
-    """
+    """Проверить наличие платежа в кэше"""
     pay_str = f"POP_PAY_CHOOSE:{user_id}"
     pay_reg = f"PAY:{user_id}:{amount}" if amount else None
     
-    # Проверяем оба кэша
+    logger.debug(f"🔍 Checking payment cache: user_id={user_id}, amount={amount}")
+    
     pay = await redis_cache.get(pay_str)
     pay_c = await redis_cache.get(pay_reg) if pay_reg else None
     
     if pay is None and pay_c is None:
+        logger.debug(f"❌ Payment not cached: user_id={user_id}")
         return None
     
     res_json: dict = {}
     
-    # Приоритет: если запросили amount=50 или не указали - проверяем популярный
     if pay and (amount == 50 or amount is None):
         res_json = json.loads(pay)
-    # Иначе проверяем кастомный
+        logger.debug(f"✅ Popular payment found: user_id={user_id}")
     elif pay_c:
         res_json = json.loads(pay_c)
+        logger.debug(f"✅ Custom payment found: user_id={user_id}")
     
     if not res_json:
         return None
@@ -350,36 +317,29 @@ async def worker_exsists(
     worker: str,
     data: dict
 ) -> bool:
-    """
-    Проверка существования задачи с lock на конкретного пользователя
-    """
+    """Проверка существования задачи с lock на конкретного пользователя"""
     user_id = data.get("user_id")
-    if not user_id:
-        # Fallback если нет user_id
-        lock_key = f"{worker}_CHECK_LOCK"
-    else:
-        lock_key = f"{worker}_CHECK_LOCK:{user_id}"  # ← Уникальный на пользователя
+    lock_key = f"{worker}_CHECK_LOCK:{user_id}" if user_id else f"{worker}_CHECK_LOCK"
     
-    # Пытаемся получить lock
+    logger.debug(f"🔍 Checking task existence: worker={worker}, user_id={user_id}")
+    
     for attempt in range(20):
         acquired = await redis_cli.set(lock_key, "1", nx=True, ex=2)
         
         if acquired:
             try:
-                all_items = await redis_cli.lrange(worker, 0, -1) #type: ignore
+                all_items = await redis_cli.lrange(worker, 0, -1) # type: ignore
                 search_value = json.dumps(data, sort_keys=True, default=str)
                 
-                start = datetime.now()
                 result = search_value in all_items
-                end = datetime.now()
-                
-                logger.debug(f"Start: {start} ||| End: {end}")
+                logger.debug(f"{'✅' if result else '❌'} Task {'exists' if result else 'not found'}: worker={worker}")
                 return result
             finally:
                 await redis_cli.delete(lock_key)
         
         await asyncio.sleep(0.1)
     
+    logger.warning(f"⏱️  Lock timeout: worker={worker}, user_id={user_id}")
     return False
 
 
@@ -388,51 +348,49 @@ async def trial_activation_worker(
     session: AsyncSession
 ):
     wrk_label = "TRIAL_ACTIVATION"
+    logger.info("🚀 Trial activation worker started")
 
     while True:
-        result = await redis_cli.brpop(wrk_label, timeout=5) #type: ignore
+        result = await redis_cli.brpop(wrk_label, timeout=5) # type: ignore
 
         if not result:
             continue 
         
         _, message = result
         data = json.loads(message)
-        logger.debug(f"Получили задачу {data}")
+        logger.info(f"📥 Trial task received: user_id={data.get('user_id')}")
+        
         try:
-
             repo = BaseRepository(session=session, model=User)
-            user = await repo.get_one(user_id = int(data["user_id"]))
-            logger.debug(f"Получили пользователя {user}")
+            user = await repo.get_one(user_id=int(data["user_id"]))
+            
             if not user:
-                user = await repo.create(
-                    user_id = int(data['user_id'])
-                )
-                logger.debug(f"Создали пользователя {user}")
+                user = await repo.create(user_id=int(data['user_id']))
+                logger.info(f"➕ User created: user_id={data['user_id']}")
+            else:
+                logger.debug(f"✅ User found: user_id={data['user_id']}")
             
             if user.trial_used:
-                logger.debug(f"Это дубль задачи {user}")
-                # обновить кэш 
+                logger.warning(f"⏭️  Trial already used: user_id={data['user_id']}")
                 continue
 
             user_id = str(data['user_id'])
+            
+            logger.debug(f"🔍 Checking Marzban: username={user_id}")
             async with MarzbanClient() as client:
                 user_marz = await client.get_user(username=user_id)
             
-            logger.debug(f"Получили пользователя в Марзбан {user_marz}")
             sub_end_marz: int = 0
 
             if user_marz == 404:
-                data_marz: dict[str, Any] = {
-                    "type": "create",
-                    "user_id": user_id
-                }
+                logger.debug(f"➕ New user in Marzban: {user_id}")
+                data_marz: dict[str, Any] = {"type": "create", "user_id": user_id}
             elif user_marz is None:
+                logger.error(f"❌ Marzban timeout: {user_id}")
                 raise TimeoutError
             elif type(user_marz) == dict:
-                data_marz: dict[str, Any] = {
-                    "type": "modify",
-                    "user_id": user_id
-                }
+                logger.debug(f"🔄 Existing user in Marzban: {user_id}")
+                data_marz: dict[str, Any] = {"type": "modify", "user_id": user_id}
                 sub_end_marz = user_marz['expire']
             else:
                 raise TimeoutError
@@ -447,16 +405,11 @@ async def trial_activation_worker(
             else:
                 max_val: datetime = max(datetime.fromtimestamp(sub_end_marz), date_now)
 
-
             new_expire: datetime = max_val + timedelta(days=s.TRIAL_DAYS)
             data_marz['expire'] = int(new_expire.timestamp())
 
-            logger.debug(f"Получили данные для воркера {data_marz}")
-            await redis_cli.lpush(
-                "MARZBAN",
-                json.dumps(data_marz, sort_keys=True, default=str)
-            ) #type: ignore
-            logger.debug(f"Отправили задачу в марзбан {data_marz}")
+            logger.info(f"📤 Queueing Marzban task: user_id={user_id}, expire={new_expire}")
+            await redis_cli.lpush("MARZBAN", json.dumps(data_marz, sort_keys=True, default=str)) # type: ignore
 
             data_for_cache = {
                 "user_id": user_id,
@@ -465,25 +418,19 @@ async def trial_activation_worker(
                 "trial_used": True
             }
 
-            await redis_cli.lpush( 
-                "DB",
-                json.dumps({
-                    "user_id": user_id,
-                    "trial_used": True,
-                    "model": "User",
-                    "type": "create"
-                }, default=str, sort_keys=True)
-            ) #type: ignore
+            await redis_cli.lpush("DB", json.dumps({
+                "user_id": user_id,
+                "trial_used": True,
+                "model": "User",
+                "type": "create"
+            }, default=str, sort_keys=True)) # type: ignore # type: ignore
 
-            await redis_cli.set(
-                f"USER_DATA:{user_id}",
-                json.dumps(data_for_cache, default=str),
-                ex=7200
-            )
+            await redis_cli.set(f"USER_DATA:{user_id}", json.dumps(data_for_cache, default=str), ex=7200)
+            logger.info(f"✅ Trial activated: user_id={user_id}")
             
         except Exception as e:
-            logger.error(f"❌ Ошибка: {e}")
-            await redis_cli.lpush(wrk_label, message) #type: ignore
+            logger.error(f"❌ Trial activation error: {e}")
+            await redis_cli.lpush(wrk_label, message) # type: ignore
             await asyncio.sleep(10)
 
 
@@ -491,154 +438,126 @@ async def marzban_worker(
     redis_cli: Redis,
     panel_url: str | None = None
 ):
-    """
-    На вход принимаем клиент редис и обрабатываем тип запроса 
-
-    типы запросов:
-        1. Create
-        2. Modify
-
-    данные для запроса
-    username: str
-    expire: int
-    id: uuid from mazban like {"id": "aljfk-asfg-saadsg-g352", "protocol": "xtls-rs-fla"}
-    panel: в какую панель нужно отправить запрос
-    """
+    """Воркер для обработки запросов к Marzban API"""
 
     wrk_label = 'MARZBAN'
+    logger.info("🚀 Marzban worker started")
 
     cnt = 0
     while True:
         # Ждём пока сервис станет доступен
         while not await check_marzban_available():
-            logger.debug("⏳ Сервис недоступен, ждём 10 сек...")
+            logger.debug("⏳ Marzban unavailable, waiting 10s...")
             await asyncio.sleep(10)
             cnt += 1
-            if cnt == 6*10:
-                #send message
-                pass
+            if cnt == 60:
+                logger.error("🚨 Marzban unavailable for 10 minutes!")
+                cnt = 0
         
-        # Берём задачу из очереди (блокирующий вызов)
-        result = await redis_cli.brpop(wrk_label, timeout=5) #type: ignore
+        result = await redis_cli.brpop(wrk_label, timeout=5) # type: ignore
         cnt = 0
+        
         if not result:
             continue 
         
         _, message = result
         data = json.loads(message)
+        logger.info(f"📥 Marzban task: type={data.get('type')}, user_id={data.get('user_id')}")
         
         try:
-            if data.get('panel'): panel_url = data['panel']
+            if data.get('panel'): 
+                panel_url = data['panel']
+                logger.debug(f"🎯 Using panel: {panel_url}")
 
             async with MarzbanClient(base_url=panel_url if panel_url else s.M_DIGITAL_URL) as client:
-                marz_data:dict = {}
+                marz_data: dict = {}
 
                 marz_data['username'] = str(data['user_id'])
                 marz_data['expire'] = data['expire']
-                if data.get("id"): marz_data['id'] = data['id']
+                if data.get("id"): 
+                    marz_data['id'] = data['id']
 
-                db_data: dict = {
-                    "model": "User"
-                }
-                db_data_panels: dict = {
-                    "model": "UserLinks"
-                }
+                db_data: dict = {"model": "User"}
+                db_data_panels: dict = {"model": "UserLinks"}
 
                 if data['type'] == "create":
-                    create_data = CreateUserMarzbanModel(
-                        **marz_data
-                    )
+                    logger.debug(f"➕ Creating user in Marzban: {marz_data['username']}")
+                    create_data = CreateUserMarzbanModel(**marz_data)
                     res = await client.create(data=create_data)
 
-                    #User
                     db_data['type'] = 'create'
                     db_data['user_id'] = int(data['user_id'])
                     db_data['subscription_end'] = datetime.fromtimestamp(data['expire'])
 
-                    #UserLinks
                     db_data_panels['type'] = 'create'
                     db_data_panels['user_id'] = int(data['user_id'])
                     db_data_panels['uuid'] = str(uuid.uuid4())
                 
                 elif data["type"] == "modify":
+                    logger.debug(f"🔄 Modifying user in Marzban: {marz_data['username']}")
                     res = await client.modify(**marz_data)
 
-                    #User
                     db_data['type'] = 'update'
                     db_data['filter'] = {"user_id": int(data['user_id'])}
                     db_data['subscription_end'] = datetime.fromtimestamp(data['expire'])
 
-                    #UserLinks
                     db_data_panels['type'] = 'update'
                     db_data_panels['filter'] = {"user_id": int(data['user_id'])}
 
-
                 if res == 409:
+                    logger.warning(f"⚠️  User exists (409), converting to modify: {marz_data['username']}")
                     res = await client.modify(**marz_data)
 
-                    #User
                     db_data['type'] = 'update'
                     db_data['filter'] = {"user_id": int(data['user_id'])}
                     db_data['subscription_end'] = datetime.fromtimestamp(data['expire'])
 
-                    #UserLinks
                     db_data_panels['type'] = 'update'
                     db_data_panels['filter'] = {"user_id": int(data['user_id'])}
 
                 if type(res) != dict:
+                    logger.error(f"❌ Unexpected Marzban response type: {type(res)}")
                     raise TimeoutError(f"Returns {type(res)} - {res}")
 
                 url: str = res['subscription_url']
 
                 if "dns1" in url:
                     db_data_panels['panel1'] = url
+                    logger.debug(f"🔗 Panel1 link: user_id={data['user_id']}")
                 elif "dns2" in url:
                     db_data_panels['panel2'] = url
+                    logger.debug(f"🔗 Panel2 link: user_id={data['user_id']}")
                 else:
-                    raise ValueError(f"Unkown panel {url}")
+                    logger.error(f"❌ Unknown panel in URL: {url}")
+                    raise ValueError(f"Unknown panel {url}")
                 
+                logger.info(f"📤 Queueing DB tasks: user_id={data['user_id']}")
                 for db_op in (db_data_panels, db_data):
-                    await redis_cli.lpush(
-                        "DB",
-                        json.dumps(db_op, sort_keys=True, default=str)
-                    ) #type:ignore
+                    await redis_cli.lpush("DB", json.dumps(db_op, sort_keys=True, default=str)) # type: ignore
 
-
-                # Данные?
-                # await redis_cli.set(
-                #     f"USER_DATA:{data['user_id']}",
-                #     "",
-                #     ex=7200
-                # )
-
-                # Для тестов
+                logger.info(f"✅ Marzban task completed: user_id={data['user_id']}")
                 return res
+                
         except Exception as e:
-            logger.error(f"❌ Ошибка: {e}")
-            await redis_cli.lpush(wrk_label, message) #type: ignore
+            logger.error(f"❌ Marzban worker error: {e}")
+            await redis_cli.lpush(wrk_label, message) # type: ignore
             await asyncio.sleep(10)
 
+
 def deserialize_data(data: dict) -> dict:
-    """
-    Конвертирует строковые datetime обратно в объекты datetime
-    """
+    """Конвертирует строковые datetime обратно в объекты datetime"""
     result = {}
     for key, value in data.items():
-        # Пропускаем служебные поля
         if key in ('model', 'type', 'filter'):
             result[key] = value
             continue
         
-        # Пытаемся распарсить datetime
         if isinstance(value, str):
             try:
-                # Пробуем ISO format datetime
                 result[key] = datetime.fromisoformat(value)
             except (ValueError, AttributeError):
-                # Не datetime - оставляем как есть
                 result[key] = value
         elif isinstance(value, dict):
-            # Рекурсивно обрабатываем вложенные словари (например, filter)
             result[key] = deserialize_data(value)
         else:
             result[key] = value
@@ -652,15 +571,9 @@ async def db_worker(
     process_once: bool = False
 ):
     """
-    На вход принимаем клиент редис и обрабатываем тип запроса 
-    Типы запросов:
-        1. Create - создание записи
-        2. Update - обновление записи
-    
-    Особенности:
-    - Автоматически превращает Create в Update если запись существует
-    - Пропускает дубликаты (если данные не изменились)
-    - Для User/UserLinks проверяет существование по user_id
+    Воркер для обработки операций с БД из очереди
+    Типы: Create, Update
+    Автоматическая конвертация операций при необходимости
     """
     wrk_label = 'DB'
     cnt = 0
@@ -670,56 +583,45 @@ async def db_worker(
     while True:
         # Проверка доступности БД
         while not await check_db_available(session):
-            logger.debug("⏳ DB unavailable, waiting 10 sec...")
+            logger.debug("⏳ DB unavailable, waiting 10s...")
             await asyncio.sleep(10)
             cnt += 1
             if cnt == 60:
                 logger.error("🚨 DB unavailable for 10 minutes!")
                 cnt = 0
         
-        # Берём задачу из очереди
-        logger.debug(f"⏳ Waiting for task from queue '{wrk_label}'...")
-        result = await redis_cli.brpop(wrk_label, timeout=5) #type: ignore
+        result = await redis_cli.brpop(wrk_label, timeout=5) # type: ignore
         cnt = 0
         
         if not result:
             if process_once:
-                logger.debug("✅ No tasks, exiting (process_once=True)")
+                logger.debug("✅ No tasks, exiting")
                 return None
             continue
         
         _, message = result
-        logger.info(f"📥 Received task: {message[:200]}...")  # Первые 200 символов
         
         try:
             data = json.loads(message)
-            logger.debug(f"📋 Parsed JSON, model={data.get('model')}, type={data.get('type')}")
+            logger.info(f"📥 DB task: model={data.get('model')}, type={data.get('type')}")
             
             data = deserialize_data(data)
             
-            # Получаем модель
             model = MODEL_REGISTRY.get(data['model'])
             if not model:
                 logger.error(f"❌ Unknown model: {data['model']}")
                 raise ValueError(f"Unknown model: {data['model']}")
             
-            logger.debug(f"✅ Model resolved: {model.__name__}")
-            
             repo = BaseRepository(session=session, model=model)
             data_type: str = data['type'].lower()
             
-            # Извлекаем данные для записи (исключаем служебные поля)
             db_data = {
                 k: v for k, v in data.items() 
                 if k not in ("model", "type", "filter")
             }
-            logger.debug(f"📦 DB data prepared: {list(db_data.keys())}")
             
             # Проверка существования для моделей с user_id
             if model in UNIQUE_USER_ID_MODELS:
-                logger.debug(f"🔍 Checking uniqueness for {model.__name__}")
-                
-                # ✅ ИСПРАВЛЕНО: Ищем user_id в data или в filter
                 user_id = data.get('user_id') or data.get('filter', {}).get('user_id')
                 
                 if not user_id:
@@ -727,34 +629,27 @@ async def db_worker(
                     raise ValueError(f"{model.__name__} requires 'user_id' field")
                 
                 user_id = int(user_id)
-                logger.debug(f"🔎 Looking for existing record with user_id={user_id}")
+                logger.debug(f"🔍 Checking: user_id={user_id}")
                 
                 existing = await repo.get_one(user_id=user_id)
                 
                 if existing is not None:
-                    logger.debug(f"📌 Found existing record for user_id={user_id}")
+                    logger.debug(f"📌 Record exists: user_id={user_id}")
                     
-                    # Получаем текущие данные из БД (без None)
                     current_data = {
                         k: v for k, v in existing.as_dict().items() 
                         if v is not None
                     }
                     
-                    # Новые данные (только те поля, которые передаём)
                     new_data = {
                         k: v for k, v in db_data.items()
-                        if k != 'user_id'  # Исключаем user_id из сравнения
+                        if k != 'user_id'
                     }
                     
-                    logger.debug(f"🔄 Comparing fields: {list(new_data.keys())}")
-                    
-                    # ✅ ИСПРАВЛЕНО: Сравниваем только переданные поля
                     has_changes = False
-                    changed_fields = []
                     for key, new_value in new_data.items():
                         current_value = current_data.get(key)
                         
-                        # Нормализуем для сравнения
                         if isinstance(new_value, datetime):
                             new_value = new_value.isoformat()
                         if isinstance(current_value, datetime):
@@ -762,105 +657,93 @@ async def db_worker(
                         
                         if new_value != current_value:
                             has_changes = True
-                            changed_fields.append(f"{key}: {current_value} → {new_value}")
+                            logger.debug(f"📝 Change: {key}={current_value}→{new_value}")
+                            break
                     
-                    if changed_fields:
-                        logger.debug(f"📝 Detected changes: {', '.join(changed_fields)}")
-                    
-                    # Если нет изменений - пропускаем
                     if not has_changes:
-                        logger.debug(f"⏭️  Skipping duplicate for user_id={user_id} (no changes)")
+                        logger.debug(f"⏭️  No changes: user_id={user_id}")
                         if process_once:
                             return 'skipped'
                         continue
                     
-                    # Если это CREATE, но запись существует - превращаем в UPDATE
                     if data_type == "create":
-                        logger.info(f"🔄 Converting CREATE → UPDATE for user_id={user_id}")
+                        logger.info(f"🔄 CREATE→UPDATE: user_id={user_id}")
                         data_type = 'update'
                         data['filter'] = {'user_id': user_id}
-                        # ✅ Убираем user_id из db_data для UPDATE
                         db_data = {k: v for k, v in db_data.items() if k != 'user_id'}
+                
                 else:
-                    logger.debug(f"✨ No existing record found for user_id={user_id}")
+                    logger.debug(f"✨ No record: user_id={user_id}")
+                    
+                    # Конвертируем UPDATE → CREATE
+                    if data_type == "update":
+                        logger.info(f"🔄 UPDATE→CREATE: user_id={user_id}")
+                        data_type = 'create'
+                        
+                        if 'filter' in data and 'user_id' in data['filter']:
+                            db_data['user_id'] = user_id
+                        
+                        data.pop('filter', None)
             
             # Выполняем операцию
             if data_type == "create":
-                logger.info(f"➕ Creating {model.__name__} with data: {db_data}")
+                logger.info(f"➕ Creating {model.__name__}")
                 res = await repo.create(**db_data)
-                logger.info(f"✅ Created {model.__name__}: {res}")
+                logger.info(f"✅ Created: {res}")
                 result_type = "create"
 
                 if model == UserLinks:
-                    user_id: int = int(db_data["user_id"])
-                    logger.debug(f"🔗 UserLinks created, fetching cache for user_id={user_id}")
+                    user_id_int: int = int(db_data["user_id"])
+                    logger.debug(f"🔗 Fetching UserLinks: user_id={user_id_int}")
                     
-                    links_cache = await repo.get_one(user_id=user_id)
+                    links_cache = await repo.get_one(user_id=user_id_int)
                     if not links_cache:
-                        logger.error(f"❌ Failed to fetch UserLinks after creation for user_id={user_id}")
-                        raise ValueError(f"UserLinks not found after creation for user_id={user_id}")
+                        logger.error(f"❌ UserLinks not found after creation: user_id={user_id_int}")
+                        raise ValueError(f"UserLinks not found: user_id={user_id_int}")
                     
-                    logger.debug(f"✅ UserLinks cache fetched: {links_cache}")
-                    # TODO: здесь можно добавить логику кеширования
+                    logger.debug(f"✅ UserLinks fetched: user_id={user_id_int}")
                 
             elif data_type == "update":
                 filter_data = data.get('filter', {})
                 
                 if not filter_data:
-                    logger.error("❌ Update requires 'filter' parameter")
+                    logger.error("❌ Update requires filter")
                     raise ValueError("Update requires 'filter' parameter")
                 
-                # ✅ Для UPDATE user_id должен быть ТОЛЬКО в filter
                 update_data = {k: v for k, v in db_data.items() if k != 'user_id'}
                 
-                logger.info(f"🔄 Updating {model.__name__} where {filter_data} with {update_data}")
+                logger.info(f"🔄 Updating {model.__name__}: {filter_data}")
                 res = await repo.update(data=update_data, **filter_data)
-                logger.info(f"✅ Updated {model.__name__}: {res} rows affected")
+                logger.info(f"✅ Updated: {res} rows")
                 result_type = 'update'
             
             else:
-                logger.error(f"❌ Unknown operation type: {data_type}")
+                logger.error(f"❌ Unknown type: {data_type}")
                 raise ValueError(f"Unknown operation type: {data_type}")
             
             if process_once:
-                logger.debug(f"✅ Task processed successfully, returning '{result_type}'")
                 return result_type
                 
         except Exception as e:
-            logger.error(f"❌ Error processing task: {e}")
-            logger.error(f"📋 Failed message: {message}")
-            import traceback
-            logger.error(f"🔍 Traceback:\n{traceback.format_exc()}")
-            
-            logger.warning(f"♻️  Re-queuing failed task to front of queue")
-            await redis_cli.lpush(wrk_label, message) #type: ignore
+            logger.error(f"❌ DB worker error: {e}")
+            await redis_cli.lpush(wrk_label, message) # type: ignore
             
             if process_once:
                 raise
             
-            logger.debug("⏸️  Waiting 1 second before next task...")
             await asyncio.sleep(1)
 
 
 def normalize_for_comparison(data: dict) -> dict:
-    """
-    Нормализует данные для корректного сравнения
-    
-    Примеры:
-    - datetime -> ISO string
-    - None -> удаляется
-    - bool -> int (для SQLite)
-    """
+    """Нормализует данные для корректного сравнения"""
     normalized = {}
     
     for k, v in data.items():
         if v is None:
             continue
         
-        # Datetime -> string
         if isinstance(v, datetime):
             normalized[k] = v.isoformat()
-        # Bool -> int (SQLite хранит как 0/1)
         elif isinstance(v, bool):
             normalized[k] = int(v)
         else:
@@ -871,102 +754,83 @@ def normalize_for_comparison(data: dict) -> dict:
 
 async def nightly_cache_refresh_worker(
     redis_cache: Redis,
-    session_maker  # async_sessionmaker
+    session_maker
 ):
-    """
-    Воркер для ночного обновления кешей всех пользователей
-    
-    Запускается каждую ночь в 03:00 и обновляет кеш всех пользователей
-    с TTL 25 часов (с запасом до следующего обновления)
-    """
+    """Воркер для ночного обновления кешей всех пользователей"""
+    logger.info("🌙 Nightly refresh worker started")
     
     while True:
-        # Вычисляем время до 03:00
         now = datetime.now()
         target = now.replace(hour=3, minute=0, second=0, microsecond=0)
         
-        # Если 03:00 уже прошло сегодня - берём завтра
         if target <= now:
             target += timedelta(days=1)
         
         sleep_seconds = (target - datetime.now()).total_seconds()
-        logger.debug(f"🌙 Nightly cache refresh scheduled for {target} (in {sleep_seconds/3600:.1f} hours)")
+        logger.info(f"🌙 Next refresh: {target} (in {sleep_seconds/3600:.1f}h)")
         
         await asyncio.sleep(sleep_seconds)
         
-        logger.debug("🌙 Starting nightly cache refresh...")
+        logger.info("🌙 Starting nightly cache refresh...")
         
         try:
             async with session_maker() as session:
                 repo = BaseRepository(session=session, model=User)
                 
-                # Обрабатываем пользователей пачками
                 offset = 0
                 batch_size = 100
                 total_refreshed = 0
                 
                 while True:
-                    # Получаем пачку пользователей
-                    stmt = (
-                        select(User)
-                        .offset(offset)
-                        .limit(batch_size)
-                    )
+                    stmt = select(User).offset(offset).limit(batch_size)
                     result = await session.execute(stmt)
                     users = result.scalars().all()
                     
                     if not users:
                         break
                     
-                    # Обновляем кеш для каждого пользователя
                     for user in users:
                         try:
                             await is_cached(
                                 redis_cache=redis_cache,
                                 user_id=user.user_id,
                                 session=session,
-                                force_refresh=True  # ← Принудительное обновление
+                                force_refresh=True
                             )
                             total_refreshed += 1
                             
-                            # Логируем прогресс каждые 100 пользователей
                             if total_refreshed % 100 == 0:
-                                logger.debug(f"📊 Progress: {total_refreshed} users refreshed")
+                                logger.info(f"📊 Progress: {total_refreshed} users")
                                 
                         except Exception as e:
-                            logger.error(f"❌ Error refreshing cache for user {user.user_id}: {e}")
+                            logger.error(f"❌ Refresh failed: user_id={user.user_id}, error={e}")
                             continue
                     
                     offset += batch_size
-                    
-                    # Небольшая пауза между пачками (чтобы не перегрузить Redis/БД)
                     await asyncio.sleep(0.5)
                 
-                logger.debug(f"✅ Nightly cache refresh completed: {total_refreshed} users")
+                logger.info(f"✅ Nightly refresh complete: {total_refreshed} users")
                 
         except Exception as e:
-            logger.error(f"❌ Nightly cache refresh failed: {e}")
-            import traceback
-            traceback.print_exc()
-            # Не падаем, попробуем снова завтра
+            logger.error(f"❌ Nightly refresh error: {e}")
+
+
+# ============================   Payment WRK   ======================================
+
+# ============================   Payment WRK   ======================================
 
 
 async def check_db_available(session: AsyncSession) -> bool:
-    """
-    Проверяет доступность PostgreSQL
-    """
+    """Проверяет доступность PostgreSQL"""
     try:
         await session.execute(text("SELECT 1"))
         return True
-    except Exception as e:
-        print(f"DB unavailable: {e}")
+    except Exception:
         return False
 
 
 async def check_marzban_available() -> bool:
-    """
-    Проверка доступности Marzban
-    """
+    """Проверка доступности Marzban"""
     try:
         async with aiohttp.ClientSession() as client:
             async with client.request("GET", settings.M_DIGITAL_URL) as res:
@@ -976,10 +840,12 @@ async def check_marzban_available() -> bool:
     
 
 async def to_link(lst_data: dict):
+    """Извлекает названия из ссылок"""
     from urllib.parse import unquote
     links = lst_data.get("links")
+    
     if links is None:
-        logger.debug(links)
+        logger.debug("❌ No links provided")
         return None
     
     titles = []
@@ -989,4 +855,5 @@ async def to_link(lst_data: dict):
         text = unquote(encoded)
         titles.append(text)
 
+    logger.debug(f"✅ Extracted {len(titles)} titles")
     return titles

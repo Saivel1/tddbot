@@ -32,12 +32,14 @@ from misc.utils import (
     trial_activation_worker,
     nightly_cache_refresh_worker,
     pub_listner,
+    is_cached_payment
 )
 
 # Stdlib
 import json
 import asyncio
 from contextlib import asynccontextmanager
+from typing import Optional
 
 
 
@@ -74,7 +76,7 @@ async def lifespan(app: Litestar):
     
     # ✅ СОХРАНЯЕМ ссылки на задачи
     worker_tasks = [
-        asyncio.create_task(db_worker(redis_cli=redis, session=worker_session), name="db_worker"),
+        asyncio.create_task(db_worker(redis_cli=redis, session=worker_session), name="db_worker"), # type: ignore
         asyncio.create_task(trial_activation_worker(redis_cli=redis, session=worker_session), name="trial_worker"),
         asyncio.create_task(nightly_cache_refresh_worker(redis_cache=redis, session_maker=async_session_maker), name="cache_worker"),
         asyncio.create_task(marzban_worker(redis_cli=redis), name="marzban_worker"),
@@ -240,6 +242,44 @@ async def webhook_marz(
         )
 
     return {"ok": True}
+
+
+@post("/be56743127c983f1") #yooKassWebhook
+async def yoo_webhook(
+    request: Request,
+    redis_cli: Redis
+) -> dict:
+    # Является ли сам запросом дубликатом
+    # Если запрос canceled, то у
+    data = await request.json()
+    event: str = data.get('event')
+    order_id = data.get('object', {}).get("id")
+
+    if not order_id:
+        logger.warning(f'Missing order_id. Response: {data}')
+        return {"status": "error", "message": "missing order_id"}
+    
+    logger.info(f"Webhook received: order={order_id}, event={event}")
+
+    status = event.split(".")[1]
+
+    if status == 'succeeded':
+        web_wrk_label = f"YOO:{order_id}"
+        cache: Optional[str] = await redis_cli.get(web_wrk_label)
+        
+        if not cache:
+            logger.error(f"Кеш умер для платежа")
+            return {"error": "erore"}
+
+        data_cache = json.loads(cache)
+        
+        # Проверяем есть ли в воркерах уже данный воркер на обработку платежа
+        # Если нет пуляем задачу
+        # Воркер должен проверять жив ли марзбан, если да, то маршрутизуем задачи 
+        # и отправлем сообщение, что платёж обработан
+
+
+    return {}
 
 
 app = Litestar(

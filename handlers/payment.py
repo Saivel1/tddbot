@@ -74,7 +74,16 @@ async def payment_process(
                     "payment_url": data[0],
                     "payment_id": data[1]
                 }
+            
+            data_for_webhook = {
+                    "user_id": user_id,
+                    "amount": amount
+            }
+            
+            web_wrk_label = f"YOO:{data[1]}"
             await redis_cache.set(pay_reg, json.dumps(data_for_load), ex=600)
+            await redis_cache.set(web_wrk_label, json.dumps(data_for_webhook), ex=700)
+
 
         except Exception as e:
             await callback.message.edit_text( #type:ignore
