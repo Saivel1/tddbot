@@ -90,6 +90,8 @@ async def lifespan(app: Litestar):
     
     yield
 
+    await redis.flushall()
+
     await close_redis()
     print("✅ Redis disconnected")
     
