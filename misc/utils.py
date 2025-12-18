@@ -782,6 +782,16 @@ async def db_worker(
                 user_data = user.as_dict()
                 await redis_cli.set(f"USER_DATA:{user_id}", json.dumps(user_data, default=str), ex=3600)
 
+            elif model == UserLinks:
+                user_id = data.get('user_id') or data.get('filter', {}).get('user_id')
+                user_links: UserLinks | None = await repo.get_one(user_id=int(user_id))
+                
+                if user_links is None:
+                    raise ValueError
+                
+                user_data = user_links.as_dict()
+                await redis_cli.set(f"USER_UUID:{user_id}", json.dumps(user_data['uuid'], default=str), ex=3600)
+
             if process_once:
                 return result_type
                 

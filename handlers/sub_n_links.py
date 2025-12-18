@@ -3,7 +3,8 @@ from keyboards.markup import MainKeyboard
 from keyboards.builder import SubMenu
 from sqlalchemy.ext.asyncio import AsyncSession
 from repositories.base import BaseRepository
-from db.models import User
+from db.models import User, UserLinks
+from db.database import async_session_maker
 from misc.utils import is_cached, to_link
 from redis.asyncio import Redis
 from bot_in import dp
@@ -22,7 +23,9 @@ async def sub_n_links(
 ):
     user_id = callback.from_user.id
     links_str = f"LINKS:{user_id}"
+    links_str_uuid = f"USER_UUID:{user_id}"
     cache = await redis_cache.get(links_str)
+    uuid_cache = await redis_cache.get(links_str_uuid)
 
     if cache:
         links = _parse_links(cache)
@@ -54,10 +57,26 @@ async def sub_n_links(
             )
         )
 
+    if not uuid_cache:
+        async with async_session_maker() as session:
+            repo = BaseRepository(session=session, model=UserLinks)
+            uuid_data = await repo.get_one(user_id=int(user_id))
+            if uuid_data is None:
+                await callback.answer()
+                return
+
+            uuid = uuid_data.uuid
+        
+        await redis_cache.set(
+            links_str_uuid,
+            uuid
+        )
+        uuid_cache = uuid
+
     link_titles = await to_link({"links": links.links})
         
     await callback.message.edit_text( #type:ignore
-        text='Something like link',
+        text=f'Something like link {uuid_cache}',
         reply_markup=SubMenu.links_keyboard(links=link_titles) #type: ignore
     )
     
@@ -79,6 +98,9 @@ async def links(
     links_str = f"LINKS:{user_id}"
     cache = await redis_cache.get(links_str)
 
+    links_str_uuid = f"USER_UUID:{user_id}"
+    uuid_cache = await redis_cache.get(links_str_uuid)
+
     if cache:
         links = _parse_links(cache)
 
@@ -109,13 +131,29 @@ async def links(
             )
         )
 
+    if not uuid_cache:
+        async with async_session_maker() as session:
+            repo = BaseRepository(session=session, model=UserLinks)
+            uuid_data = await repo.get_one(user_id=int(user_id))
+            if uuid_data is None:
+                await callback.answer()
+                return
+
+            uuid = uuid_data.uuid
+        
+        await redis_cache.set(
+            links_str_uuid,
+            uuid
+        )
+        uuid_cache = uuid
+
     index = callback.data.replace("sub_", "") #type: ignore
     link_titles = await to_link({"links": links.links})
     if link_titles is None:
         return "Error"
 
     text = f"""
-Something like link
+Something like link {uuid_cache}
 
 ```{links.links[int(index)]}```
 """
