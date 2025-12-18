@@ -797,7 +797,6 @@ async def payment_wrk(
                 cnt = 0
         
         # Получаем задачу из очереди
-        logger.debug(f"⏳ Waiting for task from queue '{wrk_label}'...")
         result = await redis_cli.brpop(wrk_label, timeout=5) #type: ignore
         cnt = 0
         
