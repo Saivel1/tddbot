@@ -853,6 +853,13 @@ async def payment_wrk(
                 "MARZBAN",
                 json.dumps(mrzb_data, sort_keys=True, default=str)
             ) #type: ignore
+
+            queue_size = await redis_cli.llen("MARZBAN") #type: ignore
+            logger.info(f"📊 MARZBAN queue size after push: {queue_size}")
+
+            # ✅ Проверка содержимого задачи
+            last_task = await redis_cli.lindex("MARZBAN", 0) #type: ignore
+            logger.debug(f"📝 Last MARZBAN task: {last_task}")
             
             # Задачи в БД
             user_db: dict = {
