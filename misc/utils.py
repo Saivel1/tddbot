@@ -762,7 +762,7 @@ async def db_worker(
                     raise ValueError
                 
                 user_data = user.as_dict()
-                await redis_cli.set(f"USER_DATA:{user_id}", json.dumps(user_data), ex=3600)
+                await redis_cli.set(f"USER_DATA:{user_id}", json.dumps(user_data, default=str), ex=3600)
 
             if process_once:
                 return result_type
