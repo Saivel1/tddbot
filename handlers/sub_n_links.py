@@ -70,6 +70,7 @@ async def links(
     prev = await redis_cache.get("PREV")
 
     if prev == callback.data:
+        await callback.answer()
         return
     
     await redis_cache.set("PREV", callback.data) #type: ignore
@@ -116,7 +117,7 @@ async def links(
     text = f"""
 Something like link
 
-```{link_titles[int(index)]}```
+```{links.links[int(index)]}```
 """
     
     await callback.message.edit_text( #type: ignore
