@@ -1,5 +1,5 @@
 # Framework / web
-from litestar import Litestar, get, post, Request
+from litestar import Litestar, Response, get, post, Request
 from litestar.exceptions import HTTPException
 from litestar.di import Provide
 
@@ -252,8 +252,9 @@ async def webhook_marz(
 @post("/pay") #yooKassWebhook
 async def yoo_webhook(
     request: Request,
-    redis_cli: Redis
-) -> dict:
+    redis_cli: Redis,
+    session: AsyncSession
+) -> dict | Response[str]:
     data = await request.json()
     event: str = data.get('event')
     order_id = data.get('object', {}).get("id")
@@ -267,6 +268,20 @@ async def yoo_webhook(
     logger.info(f"Webhook received: order={order_id}, event={event}")
 
     status = event.split(".")[1]
+
+    from repositories.base import BaseRepository
+    from db.models import PaymentData
+    
+    repo = BaseRepository(session=session, model=PaymentData)
+    existing_payment = await repo.get_one(payment_id=order_id)
+    
+    if existing_payment:
+        logger.warning(f"⏭️  Duplicate webhook (payment exists in DB): order={order_id}")
+        return Response(
+            content=json.dumps({"status": "duplicate"}),
+            status_code=200,
+            media_type="application/json"
+        )
 
     if status == 'succeeded':
         web_wrk_label = f"YOO:{order_id}"
