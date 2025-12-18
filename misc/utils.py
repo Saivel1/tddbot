@@ -37,6 +37,9 @@ import json
 import asyncio
 import uuid
 
+# Other
+from bot_in import bot
+
 
 #TODO: Обработчик для платежей
 
@@ -51,6 +54,14 @@ MODEL_REGISTRY: Dict[str, Type] = {
 
 # Модели с уникальным user_id
 UNIQUE_USER_ID_MODELS = {User, UserLinks}
+
+async def notifyer_of_down_wrk(service: str):
+    text = f"Service {service} is down for 10 minutes"
+
+    await bot.send_message(
+        chat_id=s.ADMIN_ID,
+        text=text
+    )
 
 
 async def is_cached(
@@ -449,6 +460,11 @@ async def trial_activation_worker(
 
             await redis_cli.set(f"USER_DATA:{user_id}", json.dumps(data_for_cache, default=str), ex=7200)
             logger.info(f"✅ Trial activated: user_id={user_id}")
+
+            await bot.send_message(
+                chat_id=user_id,
+                text="Пробный период активирован"
+            )
             
         except Exception as e:
             logger.error(f"❌ Trial activation error: {e}")
@@ -484,6 +500,7 @@ async def marzban_worker(
             cnt += 1
             if cnt == 60:
                 logger.error("🚨 Marzban unavailable for 10 minutes!")
+                await notifyer_of_down_wrk(service="Marzban")
                 cnt = 0
         
         result = await redis_cli.brpop(wrk_label, timeout=5) # type: ignore
@@ -620,6 +637,7 @@ async def db_worker(
             cnt += 1
             if cnt == 60:
                 logger.error("🚨 DB unavailable for 10 minutes!")
+                await notifyer_of_down_wrk(service="DB")
                 cnt = 0
         
         result = await redis_cli.brpop(wrk_label, timeout=5) # type: ignore
@@ -794,6 +812,7 @@ async def payment_wrk(
             cnt += 1
             if cnt == 60:
                 logger.error("🚨 Marzban unavailable for 10 minutes!")
+                await notifyer_of_down_wrk(service="Marzban")
                 cnt = 0
         
         # Получаем задачу из очереди
@@ -885,6 +904,19 @@ async def payment_wrk(
                 ) #type: ignore
             
             logger.info(f"✅ Payment processed: user_id={data['user_id']}, amount={data['amount']}₽, order_id={data['order_id']}")
+
+            # сообщение что обработан
+
+            await bot.send_message(
+                chat_id=int(data['user_id']),
+                text=f"Оплата прошла успешно на сумму {data['amount']}"
+            )
+
+            await bot.send_message(
+                chat_id=int(s.ADMIN_ID),
+                text=f"Оплата прошла успешно на сумму {data['amount']} для пользователя `{data['user_id']}`",
+                parse_mode='MARKDOWN'
+            )
             
         except Exception as e:
             logger.error(f"❌ Payment worker error: {e}")
