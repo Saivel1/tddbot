@@ -61,6 +61,69 @@ async def sub_n_links(
         reply_markup=SubMenu.links_keyboard(links=link_titles) #type: ignore
     )
     
+    
+@dp.callback_query(F.data.startswith("sub_"))
+async def links(
+    callback: CallbackQuery,
+    redis_cache: Redis
+):
+    prev = await redis_cache.get("PREV")
+
+    if prev == callback.data:
+        return
+    
+    await redis_cache.set("PREV", callback.data) #type: ignore
+
+    user_id = callback.from_user.id
+    links_str = f"LINKS:{user_id}"
+    cache = await redis_cache.get(links_str)
+
+    if cache:
+        links = _parse_links(cache)
+
+        if links is None:
+            return "???"
+        
+    else:
+        async with MarzbanClient() as client:
+            user = await client.get_user(username=str(user_id))
+
+            if not isinstance(user, dict):
+                return "??? Osibka"
+            
+        marz_links: list = user.get('links', [])
+        links = _parse_links(json.dumps({
+            "user_id": user_id,
+            "links": marz_links
+        }))
+
+        if links is None:
+            return "???"
+        
+        await redis_cache.set(
+            links_str,
+            json.dumps(
+                links.model_dump(),
+                default=str
+            )
+        )
+
+    index = callback.data.replace("sub_", "") #type: ignore
+    link_titles = await to_link({"links": links.links})
+    if link_titles is None:
+        return "Error"
+
+    text = f"""
+Something like link
+
+```{link_titles[int(index)]}```
+"""
+    
+    await callback.message.edit_text( #type: ignore
+        text=text,
+        reply_markup=SubMenu.links_keyboard(links=link_titles),
+        parse_mode="MARKDOWN"
+    )
 
 
 def _parse_links(user_json: str) -> UserLinksModel | None:
