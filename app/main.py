@@ -32,7 +32,8 @@ from misc.utils import (
     trial_activation_worker,
     nightly_cache_refresh_worker,
     pub_listner,
-    is_cached_payment
+    is_cached_payment,
+    worker_exsists
 )
 
 # Stdlib
@@ -249,15 +250,15 @@ async def yoo_webhook(
     request: Request,
     redis_cli: Redis
 ) -> dict:
-    # Является ли сам запросом дубликатом
-    # Если запрос canceled, то у
     data = await request.json()
     event: str = data.get('event')
     order_id = data.get('object', {}).get("id")
 
     if not order_id:
         logger.warning(f'Missing order_id. Response: {data}')
-        return {"status": "error", "message": "missing order_id"}
+        return {"status": "error", 
+                "message": "missing order_id"
+                }
     
     logger.info(f"Webhook received: order={order_id}, event={event}")
 
@@ -271,15 +272,29 @@ async def yoo_webhook(
             logger.error(f"Кеш умер для платежа")
             return {"error": "erore"}
 
+        # data_cache != 
+        # data_for_webhook = {
+        #             "user_id": user_id,
+        #             "amount": amount,
+        #     }
+
         data_cache = json.loads(cache)
-        
-        # Проверяем есть ли в воркерах уже данный воркер на обработку платежа
-        # Если нет пуляем задачу
-        # Воркер должен проверять жив ли марзбан, если да, то маршрутизуем задачи 
-        # и отправлем сообщение, что платёж обработан
+        wrk_label = 'YOO:PROCEED'
+        data_cache['order_id'] = order_id
 
+        if not await worker_exsists(
+            redis_cli=redis_cli,
+            worker=wrk_label,
+            data=data_cache
+        ):
+            await redis_cli.lpush(
+                wrk_label,
+                json.dumps(data_cache, sort_keys=True, default=str)
+            ) # type: ignore
 
-    return {}
+            return {"msg": "OK"}
+
+    return {"msg": "PROCEEDED"}
 
 
 app = Litestar(
