@@ -83,7 +83,7 @@ async def lifespan(app: Litestar):
         asyncio.create_task(nightly_cache_refresh_worker(redis_cache=redis, session_maker=async_session_maker), name="cache_worker"),
         asyncio.create_task(marzban_worker(redis_cli=redis), name="marzban_worker"),
         asyncio.create_task(pub_listner(redis_cli=redis), name="pub_listner"),
-        asyncio.create_task(payment_wrk(redis_cli=redis), name="pub_listner"),
+        asyncio.create_task(payment_wrk(redis_cli=redis), name="payment_wrk"),
     ]
     print(f"✅ Workers started: {len(worker_tasks)}")
     

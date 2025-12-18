@@ -782,6 +782,8 @@ async def db_worker(
 async def payment_wrk(
     redis_cli: Redis
 ):
+    logger.info(f"🚀 YOO PAYMENT Worker started")
+
     wrk_label = f'YOO:PROCEED'
     cnt = 0
     while True:
