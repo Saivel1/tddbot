@@ -303,7 +303,8 @@ app = Litestar(
     route_handlers=[
         webhook_marz,
         bot_webhook,
-        root
+        root,
+        yoo_webhook
     ],
     debug=True,
     dependencies={
