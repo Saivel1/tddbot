@@ -14,6 +14,7 @@ from schemas.schem import UserLinksModel
 from logger_setup import logger
 import json
 from core.marzban.Client import MarzbanClient
+from config import settings as s
 
 
 @dp.callback_query(F.data == 'subs')
@@ -73,10 +74,12 @@ async def sub_n_links(
         )
         uuid_cache = uuid
 
+    uuid_cache = uuid_cache.replace('"', "")
+
     link_titles = await to_link({"links": links.links})
         
     await callback.message.edit_text( #type:ignore
-        text=f'Something like link {uuid_cache}',
+        text=f'Something like link {s.IN_SUB_LINK}{uuid_cache}',
         reply_markup=SubMenu.links_keyboard(links=link_titles) #type: ignore
     )
     
@@ -147,13 +150,15 @@ async def links(
         )
         uuid_cache = uuid
 
+    uuid_cache = uuid_cache.replace('"', "")
+
     index = callback.data.replace("sub_", "") #type: ignore
     link_titles = await to_link({"links": links.links})
     if link_titles is None:
         return "Error"
 
     text = f"""
-Something like link {uuid_cache}
+Something like link {s.IN_SUB_LINK}{uuid_cache}
 
 ```{links.links[int(index)]}```
 """
