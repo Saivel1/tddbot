@@ -298,7 +298,7 @@ async def yoo_webhook(
         
         if not cache:
             logger.error(f"Кеш умер для платежа")
-            return {"error": "erore"}
+            return {"status": "ok"}
 
         # data_cache != 
         # data_for_webhook = {
@@ -320,9 +320,9 @@ async def yoo_webhook(
                 json.dumps(data_cache, sort_keys=True, default=str)
             ) # type: ignore
 
-            return {"msg": "OK"}
+            return {"status": "ok"}
 
-    return {"msg": "PROCEEDED"}
+    return {"status": "ok"}
 
 
 app = Litestar(

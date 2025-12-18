@@ -568,7 +568,7 @@ async def marzban_worker(
                     await redis_cli.lpush("DB", json.dumps(db_op, sort_keys=True, default=str)) # type: ignore
 
                 logger.info(f"✅ Marzban task completed: user_id={data['user_id']}")
-                return res
+                # return res
                 
         except Exception as e:
             logger.error(f"❌ Marzban worker error: {e}")
