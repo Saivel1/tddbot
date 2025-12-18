@@ -41,7 +41,7 @@ from misc.utils import (
 import json
 import asyncio
 from contextlib import asynccontextmanager
-from typing import Optional
+from typing import AsyncGenerator, Optional
 
 
 
@@ -119,6 +119,15 @@ async def provide_redis() -> Redis: #type: ignore
         yield redis #type: ignore
     finally:
         await redis.aclose()
+
+async def provide_db() -> AsyncGenerator[AsyncSession, None]:
+    """Dependency для DB session"""
+    async with async_session_maker() as session:
+        try:
+            yield session
+        finally:
+            await session.close()
+
 
 dp.message.middleware(DatabaseMiddleware(session_maker=async_session_maker))
 dp.callback_query.middleware(DatabaseMiddleware(session_maker=async_session_maker))
@@ -326,6 +335,7 @@ app = Litestar(
     debug=True,
     dependencies={
         "redis_cli": Provide(provide_redis),
+        "session": Provide(provide_db)
     },
     lifespan=[lifespan]
 )
