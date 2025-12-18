@@ -782,94 +782,114 @@ async def db_worker(
 async def payment_wrk(
     redis_cli: Redis
 ):
-    logger.info(f"🚀 YOO PAYMENT Worker started")
-
-    wrk_label = f'YOO:PROCEED'
+    logger.info("🚀 YOO PAYMENT Worker started")
+    wrk_label = 'YOO:PROCEED'
     cnt = 0
+    
     while True:
+        # Проверка доступности Marzban
         while not await check_marzban_available():
+            logger.debug("⏳ Marzban unavailable, waiting 10s...")
             await asyncio.sleep(10)
-            logger.error("Marzabn Down")
+            cnt += 1
             if cnt == 60:
-                logger.error("Marzabn Down for 10 minutes")
-                # send message
+                logger.error("🚨 Marzban unavailable for 10 minutes!")
                 cnt = 0
+        
+        # Получаем задачу из очереди
+        logger.debug(f"⏳ Waiting for task from queue '{wrk_label}'...")
+        result = await redis_cli.brpop(wrk_label, timeout=5) #type: ignore
+        cnt = 0
+        
+        if not result:
+            continue
+        
+        _, message = result
+        logger.info(f"📥 Payment task received: {message[:200]}...")
+        
+        try:
+            data = json.loads(message)
+            logger.info(f"💰 Processing payment: user_id={data.get('user_id')}, amount={data.get('amount')}₽")
             
-            result = await redis_cli.brpop(wrk_label, timeout=5) #type: ignore
-
-            if not result:
-                continue
-
-            _, message = result
-            try:
-                #Задача в Marzban
-                data = json.loads(message)
-
-                mrzb_data: dict = {
-                    "user_id": data['user_id']
-                }
+            # Задача в Marzban
+            mrzb_data: dict = {
+                "user_id": data['user_id']
+            }
+            
+            logger.debug(f"🔍 Checking user in Marzban: {data['user_id']}")
+            async with MarzbanClient() as client:
+                user = await client.get_user(username=data['user_id'])
+            
+            if isinstance(user, dict):
+                logger.debug(f"✅ User exists in Marzban: {data['user_id']}")
+                mrzb_data['type'] = 'modify'
+                raw_expire: int = user['expire']
+                obj_expire: datetime = datetime.fromtimestamp(raw_expire)
+                logger.debug(f"📅 Current expire: {obj_expire} (timestamp={raw_expire})")
                 
-                async with MarzbanClient() as client:
-                    user = await client.get_user(username=data['user_id'])
-
-                    if isinstance(user, dict):
-                        # Значит успешно получили
-                        mrzb_data['type'] = 'modify'
-                        
-                        #expire logic
-                        raw_expire: int = user['expire']
-                        obj_expire: datetime = datetime.fromtimestamp(raw_expire)
-
-                    elif user == 404:
-                        mrzb_data['type'] = 'create'
-
-                        obj_expire: datetime = datetime.now()
-                    else:
-                        raise TimeoutError
-                    
-                    logger.debug(f'RAW EXPIRE {raw_expire} ||| OBJ EXPIRE {obj_expire}')
-                    if obj_expire < datetime.now():
-                        obj_expire = datetime.now()
-
-                    logger.debug(f'OBJ TO INCREMENT {obj_expire}')
-                    days = int(data['amount']) // PRICE_PER_MONTH * 30
-                    inc_expire: datetime = obj_expire + timedelta(days=days)
-
-                    logger.debug(f"NEW EXPIRE OBJ {inc_expire}")
-                    # int
-                    mrzb_data['expire'] = int(inc_expire.timestamp())
-                    logger.debug(f"NEW EXPIRE INT {mrzb_data['expire']}")
+            elif user == 404:
+                logger.debug(f"➕ New user in Marzban: {data['user_id']}")
+                mrzb_data['type'] = 'create'
+                obj_expire: datetime = datetime.now()
                 
+            else:
+                logger.error(f"❌ Unexpected Marzban response: {type(user)}")
+                raise TimeoutError
+            
+            # Вычисляем новый expire
+            if obj_expire < datetime.now():
+                logger.debug(f"⚠️  Expire in past, using now: {obj_expire} → {datetime.now()}")
+                obj_expire = datetime.now()
+            
+            days = int(data['amount']) // PRICE_PER_MONTH * 30
+            inc_expire: datetime = obj_expire + timedelta(days=days)
+            
+            logger.info(f"📆 Subscription extended: +{days} days, new expire={inc_expire}")
+            
+            mrzb_data['expire'] = int(inc_expire.timestamp())
+            
+            # Отправляем в Marzban воркер
+            logger.debug(f"📤 Queueing Marzban task: type={mrzb_data['type']}, expire={inc_expire}")
+            await redis_cli.lpush(
+                "MARZBAN",
+                json.dumps(mrzb_data, sort_keys=True, default=str)
+            ) #type: ignore
+            
+            # Задачи в БД
+            user_db: dict = {
+                'model': "User",
+                "type": "create",
+                "user_id": data['user_id'],
+                "subscription_end": inc_expire
+            }
+            
+            payment_db: dict = {
+                'model': "PaymentData",
+                "type": "create",
+                "payment_id": data['order_id'],
+                'user_id': data['user_id'],
+                "amount": data['amount']
+            }
+            
+            logger.debug(f"📤 Queueing DB tasks: User + PaymentData for user_id={data['user_id']}")
+            for db_op in (user_db, payment_db):
                 await redis_cli.lpush(
-                    "MARZBAN",
-                    json.dumps(mrzb_data, sort_keys=True, default=str)
+                    "DB",
+                    json.dumps(db_op, sort_keys=True, default=str)
                 ) #type: ignore
-
-                #2 Задачи в БД
-                user_db: dict = {
-                    'model': "User",
-                    "type": "create",
-                    "user_id": data['user_id'],
-                    "subscription_end": inc_expire
-                }
-
-                paymnet_db: dict = {
-                    'model': "PaymentData",
-                    "type": "create",
-                    "payment_id": data['order_id'],
-                    'user_id': data['user_id'],
-                    "amount": data['amount']
-                }
-
-                for db_op in (user_db, paymnet_db):
-                    await redis_cli.lpush(
-                        "DB",
-                        json.dumps(db_op, sort_keys=True, default=str)
-                    ) #type: ignore                
             
-            except Exception as e:
-                await redis_cli.lpush(wrk_label, message) #type: ignore
-                logger.error(f'Ошибка в WRK PAYMENT_WRK {e}')
+            logger.info(f"✅ Payment processed: user_id={data['user_id']}, amount={data['amount']}₽, order_id={data['order_id']}")
+            
+        except Exception as e:
+            logger.error(f"❌ Payment worker error: {e}")
+            logger.error(f"📋 Failed message: {message}")
+            import traceback
+            logger.error(f"🔍 Traceback:\n{traceback.format_exc()}")
+            
+            logger.warning(f"♻️  Re-queuing failed payment task")
+            await redis_cli.lpush(wrk_label, message) #type: ignore
+            
+            await asyncio.sleep(5)  # Пауза перед повтором
 
 
 # ============================   Payment WRK   ======================================           
