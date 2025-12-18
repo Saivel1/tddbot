@@ -73,7 +73,7 @@ async def lifespan(app: Litestar):
     await bot.set_webhook(url=webhook_url, drop_pending_updates=True)
     print(f"✅ Webhook установлен: {webhook_url}")
 
-# ✅ Создаём долгоживущую сессию для воркеров
+    # ✅ Создаём долгоживущую сессию для воркеров
     worker_session = async_session_maker()
     
     # ✅ СОХРАНЯЕМ ссылки на задачи
@@ -112,7 +112,7 @@ async def lifespan(app: Litestar):
 
 async def provide_redis() -> Redis: #type: ignore
     """Production Redis provider"""
-    redis = Redis(host='localhost', port=6379, decode_responses=True)
+    redis = Redis(host='localhost', port=6379, password=s.REDIS_PASS, decode_responses=True)
     try:
         yield redis #type: ignore
     finally:
