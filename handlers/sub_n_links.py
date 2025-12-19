@@ -40,6 +40,7 @@ async def get_uuid_cache(
         )
         uuid_cache = uuid
     
+    logger.info(uuid_cache)
     uuid_cache = uuid_cache.replace('"', "")
     return uuid_cache
 
@@ -81,6 +82,8 @@ async def get_links_cache(
                 default=str
             )
         )
+    
+    return links
 
 
 @dp.callback_query(F.data == 'subs')
