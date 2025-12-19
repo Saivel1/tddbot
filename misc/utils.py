@@ -39,6 +39,7 @@ import uuid
 
 # Other
 from bot_in import bot
+from misc.decorators import queue_worker, SkipTask
 
 
 #TODO: Обработчик для платежей
@@ -124,14 +125,6 @@ async def is_cached(
                 return None
             
             await session.refresh(user_data)
-
-            # user_dict = {
-            #     "id": user_data.id,
-            #     "user_id": user_data.user_id,
-            #     "username": user_data.username,
-            #     "trial_used": user_data.trial_used,
-            #     "subscription_end": user_data.subscription_end.isoformat() if user_data.subscription_end else None
-            # }
 
             # Сериализуем
             json_user_data = json.dumps(user_data.as_dict(), default=str)
@@ -239,24 +232,28 @@ async def cache_popular_pay_time(redis_cache: Redis, user_id: int) -> str | None
     pay_res = json.loads(pay_data)
     return pay_res['payment_url']
 
-
-async def pub_listner(redis_cli: Redis):
-    """Воркер для обработки платежей из очереди"""
-    yoo_handl = YooPay()
-    logger.info("🚀 Payment worker started")
-    
-    try:
-        while True:
-            result = await redis_cli.brpop("PAYMENT_QUEUE", timeout=5) # type: ignore # type: ignore
-            
-            if not result:
-                continue
-            
-            _, message = result
-            logger.debug("📥 Payment task received")
-            
-            try:
-                data = json.loads(message)
+@queue_worker(
+    queue_name="PAYMENT_QUEUE",
+    timeout=5,
+    max_retries=3
+)
+async def pub_listner(redis_cli: Redis, data: dict, message):
+                """Воркер для обработки платежей из очереди"""
+                
+                # try:
+                #     while True:
+                #         result = await redis_cli.brpop("PAYMENT_QUEUE", timeout=5) # type: ignore # type: ignore
+                        
+                #         if not result:
+                #             continue
+                        
+                #         _, message = result
+                #         logger.debug("📥 Payment task received")
+                        
+                #         try:
+                #             data = json.loads(message)
+                yoo_handl = YooPay()
+                logger.info("🚀 Payment worker started")
                 user_id = data['user_id']
                 amount = data['amount']
                 pay_str = f"POP_PAY_CHOOSE:{user_id}"
@@ -265,7 +262,7 @@ async def pub_listner(redis_cli: Redis):
                 existing = await redis_cli.get(pay_str)
                 if existing:
                     logger.debug(f"⏭️  Payment exists: user_id={user_id}")
-                    continue
+                    raise SkipTask
                 
                 # Создаём платёж
                 logger.info(f"💳 Creating payment: user_id={user_id}, amount={amount}₽")
@@ -279,7 +276,7 @@ async def pub_listner(redis_cli: Redis):
                     logger.error(f"❌ Payment creation failed: user_id={user_id}")
                     await redis_cli.lpush("PAYMENT_QUEUE", message) # type: ignore
                     await asyncio.sleep(5)
-                    continue
+                    raise SkipTask
                 
                 # Сохраняем результат
                 data_for_load = {
@@ -297,14 +294,14 @@ async def pub_listner(redis_cli: Redis):
                 await redis_cli.set(web_wrk_label, json.dumps(data_for_webhook), ex=700)
                 logger.info(f"✅ Payment created: user_id={user_id}, payment_id={res[1]}")
                 
-            except Exception as e:
-                logger.error(f"❌ Payment task error: {e}")
-                await redis_cli.lpush("PAYMENT_QUEUE", message) # type: ignore
-                await asyncio.sleep(5)
+    #         except Exception as e:
+    #             logger.error(f"❌ Payment task error: {e}")
+    #             await redis_cli.lpush("PAYMENT_QUEUE", message) # type: ignore
+    #             await asyncio.sleep(5)
                 
-    except asyncio.CancelledError:
-        logger.info("🛑 Payment worker stopped")
-        raise
+    # except asyncio.CancelledError:
+    #     logger.info("🛑 Payment worker stopped")
+    #     raise
 
 
 async def is_cached_payment(
@@ -523,14 +520,14 @@ async def marzban_worker(
 
                 marz_data['username'] = str(data['user_id'])
                 marz_data['expire'] = data['expire']
-                if data.get("id"): 
-                    marz_data['id'] = data['id']
-
+                
                 db_data: dict = {"model": "User"}
                 db_data_panels: dict = {"model": "UserLinks"}
 
                 if data['type'] == "create":
                     logger.debug(f"➕ Creating user in Marzban: {marz_data['username']}")
+                    if data.get("id"): 
+                        marz_data['id'] = data['id']
                     create_data = CreateUserMarzbanModel(**marz_data)
                     res = await client.create(data=create_data)
 
@@ -777,7 +774,6 @@ async def db_worker(
 
             if model == User:
                 user_id = db_data.get('user_id') or data.get('filter', {}).get('user_id')
-                logger.info(user_id)
                 user: User | None = await repo.get_one(user_id=int(user_id))
                 
                 if user is None:
@@ -788,7 +784,6 @@ async def db_worker(
 
             elif model == UserLinks:
                 user_id = db_data.get('user_id') or data.get('filter', {}).get('user_id')
-                logger.info(user_id)
                 user_links: UserLinks | None = await repo.get_one(user_id=int(user_id))
                 
                 if user_links is None:

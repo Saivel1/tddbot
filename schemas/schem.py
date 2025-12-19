@@ -22,3 +22,25 @@ class CreateUserMarzbanModel(BaseModel):
 class UserLinksModel(BaseModel):
     user_id: int
     links: list[str]
+
+
+class WRKDBUserInput(BaseModel):
+    pass
+
+
+class WRKDBUserLinksInput(BaseModel):
+    pass
+
+
+class WRKDBPaymentDataInput(BaseModel):
+    pass
+
+
+class WRKMarzbanInput(BaseModel):
+    username: str
+    id: str | None = None
+    expire: int | None = None
+
+
+class WRKPaymentInput(BaseModel):
+    pass
