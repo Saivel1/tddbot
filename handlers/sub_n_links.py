@@ -17,29 +17,53 @@ from core.marzban.Client import MarzbanClient
 from config import settings as s
 
 
-@dp.callback_query(F.data == 'subs')
-async def sub_n_links(
-    callback: CallbackQuery,
-    redis_cache: Redis
+async def get_uuid_cache(
+    redis_cache: Redis,
+    user_id
 ):
-    user_id = callback.from_user.id
-    links_str = f"LINKS:{user_id}"
     links_str_uuid = f"USER_UUID:{user_id}"
-    cache = await redis_cache.get(links_str)
     uuid_cache = await redis_cache.get(links_str_uuid)
+
+    if not uuid_cache:
+        async with async_session_maker() as session:
+            repo = BaseRepository(session=session, model=UserLinks)
+            uuid_data = await repo.get_one(user_id=int(user_id))
+            if uuid_data is None:
+                # await callback.answer()
+                return None
+
+            uuid = uuid_data.uuid
+        
+        await redis_cache.set(
+            links_str_uuid,
+            uuid
+        )
+        uuid_cache = uuid
+    
+    uuid_cache = uuid_cache.replace('"', "")
+    return uuid_cache
+
+
+async def get_links_cache(
+    redis_cache: Redis,
+    user_id
+) -> UserLinksModel | None:
+    links_str = f"LINKS:{user_id}"
+    cache = await redis_cache.get(links_str)
 
     if cache:
         links = _parse_links(cache)
 
         if links is None:
-            return "???"
+            return None
         
     else:
         async with MarzbanClient() as client:
             user = await client.get_user(username=str(user_id))
 
             if not isinstance(user, dict):
-                return "??? Osibka"
+                logger.error(f"Ошибка Marzban {user}")
+                return None
             
         marz_links: list = user.get('links', [])
         links = _parse_links(json.dumps({
@@ -48,7 +72,7 @@ async def sub_n_links(
         }))
 
         if links is None:
-            return "???"
+            return None
         
         await redis_cache.set(
             links_str,
@@ -58,23 +82,27 @@ async def sub_n_links(
             )
         )
 
-    if not uuid_cache:
-        async with async_session_maker() as session:
-            repo = BaseRepository(session=session, model=UserLinks)
-            uuid_data = await repo.get_one(user_id=int(user_id))
-            if uuid_data is None:
-                await callback.answer()
-                return
 
-            uuid = uuid_data.uuid
-        
-        await redis_cache.set(
-            links_str_uuid,
-            uuid
-        )
-        uuid_cache = uuid
+@dp.callback_query(F.data == 'subs')
+async def sub_n_links(
+    callback: CallbackQuery,
+    redis_cache: Redis
+):
+    user_id = callback.from_user.id
 
-    uuid_cache = uuid_cache.replace('"', "")
+    uuid_cache = await get_uuid_cache(
+        redis_cache=redis_cache,
+        user_id=user_id
+    )
+
+    links = await get_links_cache(
+        redis_cache=redis_cache,
+        user_id=user_id
+    )
+
+    if links is None or uuid_cache is None:
+        await callback.answer()
+        return
 
     link_titles = await to_link({"links": links.links})
         
@@ -98,59 +126,20 @@ async def links(
     await redis_cache.set("PREV", callback.data) #type: ignore
 
     user_id = callback.from_user.id
-    links_str = f"LINKS:{user_id}"
-    cache = await redis_cache.get(links_str)
 
-    links_str_uuid = f"USER_UUID:{user_id}"
-    uuid_cache = await redis_cache.get(links_str_uuid)
+    uuid_cache = await get_uuid_cache(
+        redis_cache=redis_cache,
+        user_id=user_id
+    )
+    
+    links = await get_links_cache(
+        redis_cache=redis_cache,
+        user_id=user_id
+    )
 
-    if cache:
-        links = _parse_links(cache)
-
-        if links is None:
-            return "???"
-        
-    else:
-        async with MarzbanClient() as client:
-            user = await client.get_user(username=str(user_id))
-
-            if not isinstance(user, dict):
-                return "??? Osibka"
-            
-        marz_links: list = user.get('links', [])
-        links = _parse_links(json.dumps({
-            "user_id": user_id,
-            "links": marz_links
-        }))
-
-        if links is None:
-            return "???"
-        
-        await redis_cache.set(
-            links_str,
-            json.dumps(
-                links.model_dump(),
-                default=str
-            )
-        )
-
-    if not uuid_cache:
-        async with async_session_maker() as session:
-            repo = BaseRepository(session=session, model=UserLinks)
-            uuid_data = await repo.get_one(user_id=int(user_id))
-            if uuid_data is None:
-                await callback.answer()
-                return
-
-            uuid = uuid_data.uuid
-        
-        await redis_cache.set(
-            links_str_uuid,
-            uuid
-        )
-        uuid_cache = uuid
-
-    uuid_cache = uuid_cache.replace('"', "")
+    if links is None or uuid_cache is None:
+        await callback.answer()
+        return
 
     index = callback.data.replace("sub_", "") #type: ignore
     link_titles = await to_link({"links": links.links})
