@@ -1,5 +1,5 @@
 from functools import wraps
-from typing import Callable, Any
+from typing import Awaitable, Callable, Any
 from redis.asyncio import Redis
 import asyncio
 import json
@@ -16,7 +16,7 @@ def queue_worker(
     timeout: int = 5,
     max_retries: int = 3,
     retry_delay: int = 1,
-    check_availability: Callable[[], bool] | None = None,
+    check_availability: Callable[[], Awaitable[bool]] | None = None,
 ):
     """
     Декоратор для создания воркеров из очередей

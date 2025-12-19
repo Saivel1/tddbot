@@ -474,48 +474,55 @@ async def trial_activation_worker(
         #     await asyncio.sleep(10)
 
 
+@queue_worker(
+    queue_name="MARZBAN",
+    timeout=5,
+    max_retries=3,
+    check_availability=check_marzban_available
+)
 async def marzban_worker(
     redis_cli: Redis,
-    panel_url: str | None = None
+    data: dict,
+    panel_url: str | None = None,
 ):
-    """
-    Воркер для обработки запросов к Marzban API
-    data = 
-    type: create | modify 
-    user_id: str | int
-    expire: int
+            """
+            Воркер для обработки запросов к Marzban API
+            data = 
+            type: create | modify 
+            user_id: str | int
+            expire: int
 
-    ADDITIONAL 
-    id: uuid from marzban
-    panel: custom panel to request
-    """
+            ADDITIONAL 
+            id: uuid from marzban
+            panel: custom panel to request
+            """
 
-    wrk_label = 'MARZBAN'
-    logger.info("🚀 Marzban worker started")
+    # wrk_label = 'MARZBAN'
+    # logger.info("🚀 Marzban worker started")
 
-    cnt = 0
-    while True:
-        # Ждём пока сервис станет доступен
-        while not await check_marzban_available():
-            logger.debug("⏳ Marzban unavailable, waiting 10s...")
-            await asyncio.sleep(10)
-            cnt += 1
-            if cnt == 60:
-                logger.error("🚨 Marzban unavailable for 10 minutes!")
-                await notifyer_of_down_wrk(service="Marzban")
-                cnt = 0
+    # cnt = 0
+    # while True:
+    #     # Ждём пока сервис станет доступен
+    #     while not await check_marzban_available():
+    #         logger.debug("⏳ Marzban unavailable, waiting 10s...")
+    #         await asyncio.sleep(10)
+    #         cnt += 1
+    #         if cnt == 60:
+    #             logger.error("🚨 Marzban unavailable for 10 minutes!")
+    #             await notifyer_of_down_wrk(service="Marzban")
+    #             cnt = 0
         
-        result = await redis_cli.brpop(wrk_label, timeout=5) # type: ignore
-        cnt = 0
+    #     result = await redis_cli.brpop(wrk_label, timeout=5) # type: ignore
+    #     cnt = 0
         
-        if not result:
-            continue 
+    #     if not result:
+    #         continue 
         
-        _, message = result
-        data = json.loads(message)
-        logger.info(f"📥 Marzban task: type={data.get('type')}, user_id={data.get('user_id')}")
+    #     _, message = result
+    #     data = json.loads(message)
+    #     logger.info(f"📥 Marzban task: type={data.get('type')}, user_id={data.get('user_id')}")
         
-        try:
+    #     try:
             if data.get('panel'): 
                 panel_url = data['panel']
                 logger.debug(f"🎯 Using panel: {panel_url}")
@@ -589,10 +596,10 @@ async def marzban_worker(
                 logger.info(f"✅ Marzban task completed: user_id={data['user_id']}")
                 # return res
                 
-        except Exception as e:
-            logger.error(f"❌ Marzban worker error: {e}")
-            await redis_cli.lpush(wrk_label, message) # type: ignore
-            await asyncio.sleep(10)
+        # except Exception as e:
+        #     logger.error(f"❌ Marzban worker error: {e}")
+        #     await redis_cli.lpush(wrk_label, message) # type: ignore
+        #     await asyncio.sleep(10)
 
 
 def deserialize_data(data: dict) -> dict:
