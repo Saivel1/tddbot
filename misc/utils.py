@@ -776,7 +776,7 @@ async def db_worker(
             
 
             if model == User:
-                user_id = data.get('user_id') or data.get('filter', {}).get('user_id')
+                user_id = db_data.get('user_id') or data.get('filter', {}).get('user_id')
                 logger.info(user_id)
                 user: User | None = await repo.get_one(user_id=int(user_id))
                 
@@ -787,7 +787,7 @@ async def db_worker(
                 await redis_cli.set(f"USER_DATA:{user_id}", json.dumps(user_data, default=str), ex=3600)
 
             elif model == UserLinks:
-                user_id = data.get('user_id') or data.get('filter', {}).get('user_id')
+                user_id = db_data.get('user_id') or data.get('filter', {}).get('user_id')
                 logger.info(user_id)
                 user_links: UserLinks | None = await repo.get_one(user_id=int(user_id))
                 
