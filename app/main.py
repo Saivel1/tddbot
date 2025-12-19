@@ -324,13 +324,80 @@ async def yoo_webhook(
 
     return {"status": "ok"}
 
+@post("/pay-test", status_code=200) #yooKassWebhook
+async def yoo_webhoo_test(
+    request: Request,
+    redis_cli: Redis,
+    session: AsyncSession
+) -> dict | Response[str]:
+    data = await request.json()
+    event: str = data.get('event')
+    order_id = data.get('object', {}).get("id")
+
+    if not order_id:
+        logger.warning(f'Missing order_id. Response: {data}')
+        return {"status": "error", 
+                "message": "missing order_id"
+                }
+    
+    logger.info(f"Webhook received: order={order_id}, event={event}")
+
+    status = event.split(".")[1]
+
+    from repositories.base import BaseRepository
+    from db.models import PaymentData
+    
+    repo = BaseRepository(session=session, model=PaymentData)
+    existing_payment = await repo.get_one(payment_id=order_id)
+    
+    if existing_payment:
+        logger.warning(f"⏭️  Duplicate webhook (payment exists in DB): order={order_id}")
+        return Response(
+            content=json.dumps({"status": "duplicate"}),
+            status_code=200,
+            media_type="application/json"
+        )
+
+    if status == 'succeeded':
+        web_wrk_label = f"YOO:{order_id}"
+        cache: Optional[str] = await redis_cli.get(web_wrk_label)
+        
+        if not cache:
+            logger.error(f"Кеш умер для платежа")
+            return {"status": "ok"}
+
+        # data_cache != 
+        # data_for_webhook = {
+        #             "user_id": user_id,
+        #             "amount": amount,
+        #     }
+
+        data_cache = json.loads(cache)
+        wrk_label = 'YOO:PROCEED'
+        data_cache['order_id'] = order_id
+
+        if not await worker_exsists(
+            redis_cli=redis_cli,
+            worker=wrk_label,
+            data=data_cache
+        ):
+            await redis_cli.lpush(
+                wrk_label,
+                json.dumps(data_cache, sort_keys=True, default=str)
+            ) # type: ignore
+
+            return {"status": "ok"}
+
+    return {"status": "ok"}
+
 
 app = Litestar(
     route_handlers=[
         webhook_marz,
         bot_webhook,
         root,
-        yoo_webhook
+        yoo_webhook,
+        yoo_webhoo_test
     ],
     debug=True,
     dependencies={
