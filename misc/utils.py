@@ -733,6 +733,9 @@ async def db_worker(
                         if 'filter' in data and 'user_id' in data['filter']:
                             db_data['user_id'] = user_id
                         
+                        if model == UserLinks:
+                            db_data['uuid'] = str(uuid.uuid4())
+
                         data.pop('filter', None)
             
             # Выполняем операцию
