@@ -221,7 +221,7 @@ async def webhook_marz(
 
     wrk_data: dict = { 
         "user_id": username,
-        "expire": data[0]['expire']
+        "expire": data[0]["user"]['expire']
     }
     from_panel = first_item.get('subscription_url')
 
