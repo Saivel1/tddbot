@@ -2,6 +2,7 @@
 from litestar import Litestar, Response, get, post, Request
 from litestar.exceptions import HTTPException
 from litestar.di import Provide
+from litestar.params import Dependency
 
 # Bot / Telegram
 from aiogram import Bot, Dispatcher
@@ -41,7 +42,7 @@ from misc.utils import (
 import json
 import asyncio
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator, Optional
+from typing import Annotated, AsyncGenerator, Optional
 
 
 
@@ -327,8 +328,8 @@ async def yoo_webhook(
 @post("/pay-test", status_code=200) #yooKassWebhook
 async def yoo_webhoo_test(
     request: Request,
-    redis_cli: Redis,
-    session: AsyncSession
+    redis_cli: Annotated[Redis, Dependency(skip_validation=True)],  # ✅
+    session: Annotated[AsyncSession, Dependency(skip_validation=True)] 
 ) -> dict | Response[str]:
     data = await request.json()
     event: str = data.get('event')
