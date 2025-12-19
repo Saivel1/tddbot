@@ -237,7 +237,7 @@ async def cache_popular_pay_time(redis_cache: Redis, user_id: int) -> str | None
     timeout=5,
     max_retries=3
 )
-async def pub_listner(redis_cli: Redis, data: dict, message):
+async def pub_listner(redis_cli: Redis, data: dict):
                 """Воркер для обработки платежей из очереди"""
                 
                 # try:
@@ -274,9 +274,8 @@ async def pub_listner(redis_cli: Redis, data: dict, message):
                 
                 if res is None:
                     logger.error(f"❌ Payment creation failed: user_id={user_id}")
-                    await redis_cli.lpush("PAYMENT_QUEUE", message) # type: ignore
                     await asyncio.sleep(5)
-                    raise SkipTask
+                    raise TimeoutError
                 
                 # Сохраняем результат
                 data_for_load = {

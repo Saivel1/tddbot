@@ -71,7 +71,6 @@ def queue_worker(
                         # Вызываем обработчик
                         result = await handler(
                             data=data,
-                            message=message,
                             redis_cli=redis_cli,
                             **handler_kwargs
                         )
