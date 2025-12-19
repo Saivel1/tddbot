@@ -69,11 +69,11 @@ class VPNBotUser(HttpUser):
     @task(3)
     def get_payment_link(self):
         """Получение ссылки на оплату (через callback)"""
-        amount = random.choice([50, 100, 200, 600])
+        amount = random.choice([50, 150, 300, 600])
         
         # ✅ Используем callback_query вместо текста
         update = self._create_callback_update(
-            callback_data=f"pay:{amount}",
+            callback_data=f"pay_{amount}",
             user_id=self.user_id
         )
         
@@ -92,7 +92,7 @@ class VPNBotUser(HttpUser):
     def get_vpn_links(self):
         """Получение VPN ссылок"""
         update = self._create_telegram_update(
-            text="/links",
+            text="/subs",
             user_id=self.user_id
         )
         
@@ -107,24 +107,6 @@ class VPNBotUser(HttpUser):
             else:
                 response.failure(f"Status: {response.status_code}")
     
-    @task(1)
-    def help_command(self):
-        """Команда помощи"""
-        update = self._create_telegram_update(
-            text="/help",
-            user_id=self.user_id
-        )
-        
-        with self.client.post(
-            "/bot-webhook",
-            json=update,
-            name="❓ Help",
-            catch_response=True
-        ) as response:
-            if response.status_code == 200:
-                response.success()
-            else:
-                response.failure(f"Status: {response.status_code}")
     
     def _create_telegram_update(self, text: str, user_id: int) -> dict:
         """
@@ -208,7 +190,7 @@ class PaymentWebhookUser(HttpUser):
         # ✅ Используем безопасный диапазон user_id
         user_id = random.randint(10_000_000_000, 10_000_999_999)
         order_id = f"locust-test-{random.randint(10000, 99999)}-{int(datetime.now().timestamp())}"
-        amount = random.choice([50, 100, 200, 600])
+        amount = random.choice([50, 150, 300, 600])
         
         payload = {
             "type": "notification",
