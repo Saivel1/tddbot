@@ -69,10 +69,10 @@ async def lifespan(app: Litestar):
     print("✅ Database tables created")
 
     # Webhook setup
-    await bot.delete_webhook()
-    webhook_url = f"{s.WEBHOOK_URL}"
-    await bot.set_webhook(url=webhook_url, drop_pending_updates=True)
-    print(f"✅ Webhook установлен: {webhook_url}")
+    # await bot.delete_webhook()
+    # webhook_url = f"{s.WEBHOOK_URL}"
+    # await bot.set_webhook(url=webhook_url, drop_pending_updates=True)
+    # print(f"✅ Webhook установлен: {webhook_url}")
 
     # ✅ Создаём долгоживущую сессию для воркеров
     worker_session = async_session_maker()
