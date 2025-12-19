@@ -258,7 +258,7 @@ async def webhook_marz(
     return {"ok": True}
 
 
-@post("/pay") #yooKassWebhook
+@post("/pay", status_code=200) #yooKassWebhook
 async def yoo_webhook(
     request: Request,
     redis_cli: Redis,
