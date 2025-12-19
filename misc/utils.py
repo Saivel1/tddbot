@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, text
 from repositories.base import BaseRepository
 from db.models import User, UserLinks, PaymentData
+from db.database import async_session_maker
 
 # Redis
 from redis.asyncio import Redis
@@ -72,6 +73,16 @@ async def check_marzban_available() -> bool:
                 return res.status < 500
     except:
         return False
+    
+
+async def check_db_available() -> bool:
+    """Проверяет доступность PostgreSQL"""
+    async with async_session_maker() as session:
+        try:
+            await session.execute(text("SELECT 1"))
+            return True
+        except Exception:
+            return False
 
 
 async def is_cached(
@@ -631,46 +642,53 @@ def deserialize_data(data: dict) -> dict:
     
     return result
 
-
+@queue_worker(
+    queue_name="DB",
+    timeout=5,
+    max_retries=3,
+    check_availability=check_db_available
+)
 async def db_worker(
     redis_cli: Redis,
     session: AsyncSession,
+    data: dict,
     process_once: bool = False
 ):
-    """
-    Воркер для обработки операций с БД из очереди
-    Типы: Create, Update
-    Автоматическая конвертация операций при необходимости
-    """
-    wrk_label = 'DB'
-    cnt = 0
+
+    # wrk_label = 'DB'
+    # cnt = 0
     
-    logger.info(f"🚀 DB Worker started (process_once={process_once})")
+    # logger.info(f"🚀 DB Worker started (process_once={process_once})")
     
-    while True:
-        # Проверка доступности БД
-        while not await check_db_available(session):
-            logger.debug("⏳ DB unavailable, waiting 10s...")
-            await asyncio.sleep(10)
-            cnt += 1
-            if cnt == 60:
-                logger.error("🚨 DB unavailable for 10 minutes!")
-                await notifyer_of_down_wrk(service="DB")
-                cnt = 0
+    # while True:
+    #     # Проверка доступности БД
+    #     while not await check_db_available(session):
+    #         logger.debug("⏳ DB unavailable, waiting 10s...")
+    #         await asyncio.sleep(10)
+    #         cnt += 1
+    #         if cnt == 60:
+    #             logger.error("🚨 DB unavailable for 10 minutes!")
+    #             await notifyer_of_down_wrk(service="DB")
+    #             cnt = 0
         
-        result = await redis_cli.brpop(wrk_label, timeout=5) # type: ignore
-        cnt = 0
+    #     result = await redis_cli.brpop(wrk_label, timeout=5) # type: ignore
+    #     cnt = 0
         
-        if not result:
-            if process_once:
-                logger.debug("✅ No tasks, exiting")
-                return None
-            continue
+    #     if not result:
+    #         if process_once:
+    #             logger.debug("✅ No tasks, exiting")
+    #             return None
+    #         continue
         
-        _, message = result
+    #     _, message = result
         
-        try:
-            data = json.loads(message)
+    #     try:
+    #         data = json.loads(message)
+            """
+            Воркер для обработки операций с БД из очереди
+            Типы: Create, Update
+            Автоматическая конвертация операций при необходимости
+            """
             logger.info(f"📥 DB task: model={data.get('model')}, type={data.get('type')}")
             
             data = deserialize_data(data)
@@ -732,7 +750,7 @@ async def db_worker(
                         logger.debug(f"⏭️  No changes: user_id={user_id}")
                         if process_once:
                             return 'skipped'
-                        continue
+                        raise SkipTask
                     
                     if data_type == "create":
                         logger.info(f"🔄 CREATE→UPDATE: user_id={user_id}")
@@ -816,14 +834,14 @@ async def db_worker(
             if process_once:
                 return result_type
                 
-        except Exception as e:
-            logger.error(f"❌ DB worker error: {e}")
-            await redis_cli.lpush(wrk_label, message) # type: ignore
+        # except Exception as e:
+        #     logger.error(f"❌ DB worker error: {e}")
+        #     await redis_cli.lpush(wrk_label, message) # type: ignore
             
-            if process_once:
-                raise
+        #     if process_once:
+        #         raise
             
-            await asyncio.sleep(1)
+        #     await asyncio.sleep(1)
 
 
 # ============================   Payment WRK   ======================================
@@ -1044,21 +1062,6 @@ async def nightly_cache_refresh_worker(
         except Exception as e:
             logger.error(f"❌ Nightly refresh error: {e}")
 
-
-
-
-
-async def check_db_available(session: AsyncSession) -> bool:
-    """Проверяет доступность PostgreSQL"""
-    try:
-        await session.execute(text("SELECT 1"))
-        return True
-    except Exception:
-        return False
-
-
-
-    
 
 async def to_link(lst_data: dict):
     """Извлекает названия из ссылок"""
