@@ -64,6 +64,15 @@ async def notifyer_of_down_wrk(service: str):
         text=text
     )
 
+async def check_marzban_available() -> bool:
+    """Проверка доступности Marzban"""
+    try:
+        async with aiohttp.ClientSession() as client:
+            async with client.request("GET", settings.M_DIGITAL_URL) as res:
+                return res.status < 500
+    except:
+        return False
+
 
 async def is_cached(
     redis_cache: Redis,
@@ -1048,14 +1057,7 @@ async def check_db_available(session: AsyncSession) -> bool:
         return False
 
 
-async def check_marzban_available() -> bool:
-    """Проверка доступности Marzban"""
-    try:
-        async with aiohttp.ClientSession() as client:
-            async with client.request("GET", settings.M_DIGITAL_URL) as res:
-                return res.status < 500
-    except:
-        return False
+
     
 
 async def to_link(lst_data: dict):
