@@ -846,36 +846,43 @@ async def db_worker(
 
 # ============================   Payment WRK   ======================================
 
+@queue_worker(
+    queue_name="YOO:PROCEED",
+    timeout=5,
+    max_retries=3,
+    check_availability=check_marzban_available
+)
 async def payment_wrk(
-    redis_cli: Redis
+    redis_cli: Redis,
+    data: dict
 ):
-    logger.info("🚀 YOO PAYMENT Worker started")
-    wrk_label = 'YOO:PROCEED'
-    cnt = 0
+    # logger.info("🚀 YOO PAYMENT Worker started")
+    # wrk_label = 'YOO:PROCEED'
+    # cnt = 0
     
-    while True:
-        # Проверка доступности Marzban
-        while not await check_marzban_available():
-            logger.debug("⏳ Marzban unavailable, waiting 10s...")
-            await asyncio.sleep(10)
-            cnt += 1
-            if cnt == 60:
-                logger.error("🚨 Marzban unavailable for 10 minutes!")
-                await notifyer_of_down_wrk(service="Marzban")
-                cnt = 0
+    # while True:
+    #     # Проверка доступности Marzban
+    #     while not await check_marzban_available():
+    #         logger.debug("⏳ Marzban unavailable, waiting 10s...")
+    #         await asyncio.sleep(10)
+    #         cnt += 1
+    #         if cnt == 60:
+    #             logger.error("🚨 Marzban unavailable for 10 minutes!")
+    #             await notifyer_of_down_wrk(service="Marzban")
+    #             cnt = 0
         
-        # Получаем задачу из очереди
-        result = await redis_cli.brpop(wrk_label, timeout=5) #type: ignore
-        cnt = 0
+    #     # Получаем задачу из очереди
+    #     result = await redis_cli.brpop(wrk_label, timeout=5) #type: ignore
+    #     cnt = 0
         
-        if not result:
-            continue
+    #     if not result:
+    #         continue
         
-        _, message = result
-        logger.info(f"📥 Payment task received: {message[:200]}...")
+    #     _, message = result
+    #     logger.info(f"📥 Payment task received: {message[:200]}...")
         
-        try:
-            data = json.loads(message)
+    #     try:
+    #         data = json.loads(message)
             logger.info(f"💰 Processing payment: user_id={data.get('user_id')}, amount={data.get('amount')}₽")
             
             # Задача в Marzban
@@ -967,16 +974,16 @@ async def payment_wrk(
                 parse_mode='MARKDOWN'
             )
             
-        except Exception as e:
-            logger.error(f"❌ Payment worker error: {e}")
-            logger.error(f"📋 Failed message: {message}")
-            import traceback
-            logger.error(f"🔍 Traceback:\n{traceback.format_exc()}")
+        # except Exception as e:
+        #     logger.error(f"❌ Payment worker error: {e}")
+        #     logger.error(f"📋 Failed message: {message}")
+        #     import traceback
+        #     logger.error(f"🔍 Traceback:\n{traceback.format_exc()}")
             
-            logger.warning(f"♻️  Re-queuing failed payment task")
-            await redis_cli.lpush(wrk_label, message) #type: ignore
+        #     logger.warning(f"♻️  Re-queuing failed payment task")
+        #     await redis_cli.lpush(wrk_label, message) #type: ignore
             
-            await asyncio.sleep(5)  # Пауза перед повтором
+        #     await asyncio.sleep(5)  # Пауза перед повтором
 
 
 # ============================   Payment WRK   ======================================           
