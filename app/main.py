@@ -187,6 +187,8 @@ async def webhook_marz(
     data_str = json.dumps(data, ensure_ascii=False)
 
     first_item = data[0]
+    logger.info(first_item)
+    logger.info(data)
 
     username  = first_item.get('username')
     action    = first_item.get('action')
