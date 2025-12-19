@@ -372,24 +372,30 @@ async def worker_exsists(
     return False
 
 
+@queue_worker(
+    queue_name="TRIAL_ACTIVATION",
+    timeout=5,
+    max_retries=3
+)
 async def trial_activation_worker(
     redis_cli: Redis,
-    session: AsyncSession
+    session: AsyncSession,
+    data: dict
 ):
-    wrk_label = "TRIAL_ACTIVATION"
-    logger.info("🚀 Trial activation worker started")
+    # wrk_label = "TRIAL_ACTIVATION"
+    # logger.info("🚀 Trial activation worker started")
 
-    while True:
-        result = await redis_cli.brpop(wrk_label, timeout=5) # type: ignore
+    # while True:
+    #     result = await redis_cli.brpop(wrk_label, timeout=5) # type: ignore
 
-        if not result:
-            continue 
+    #     if not result:
+    #         continue 
         
-        _, message = result
-        data = json.loads(message)
-        logger.info(f"📥 Trial task received: user_id={data.get('user_id')}")
+    #     _, message = result
+    #     data = json.loads(message)
+    #     logger.info(f"📥 Trial task received: user_id={data.get('user_id')}")
         
-        try:
+    #     try:
             repo = BaseRepository(session=session, model=User)
             user = await repo.get_one(user_id=int(data["user_id"]))
             
@@ -401,7 +407,7 @@ async def trial_activation_worker(
             
             if user.trial_used:
                 logger.warning(f"⏭️  Trial already used: user_id={data['user_id']}")
-                continue
+                raise SkipTask(f"⏭️  Trial already used: user_id={data['user_id']}")
 
             user_id = str(data['user_id'])
             
@@ -462,10 +468,10 @@ async def trial_activation_worker(
                 text="Пробный период активирован"
             )
             
-        except Exception as e:
-            logger.error(f"❌ Trial activation error: {e}")
-            await redis_cli.lpush(wrk_label, message) # type: ignore
-            await asyncio.sleep(10)
+        # except Exception as e:
+        #     logger.error(f"❌ Trial activation error: {e}")
+        #     await redis_cli.lpush(wrk_label, message) # type: ignore
+        #     await asyncio.sleep(10)
 
 
 async def marzban_worker(
