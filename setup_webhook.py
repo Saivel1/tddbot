@@ -6,7 +6,7 @@ async def setup_webhook():
     """Установить webhook один раз"""
     bot = Bot(token=settings.BOT_TOKEN)
     
-    webhook_url = f"https://{settings.WEBHOOK_URL}/bot-webhook"
+    webhook_url = f"https://{settings.WEBHOOK_URL}"
     
     try:
         # Удалить старый webhook
