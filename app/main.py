@@ -64,8 +64,8 @@ async def lifespan(app: Litestar):
     await redis.ping()  #type: ignore
     print("✅ Redis connected")
     
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    # async with engine.begin() as conn:
+    #     await conn.run_sync(Base.metadata.create_all)
     print("✅ Database tables created")
 
     # Webhook setup
