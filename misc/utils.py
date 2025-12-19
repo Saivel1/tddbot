@@ -777,6 +777,7 @@ async def db_worker(
 
             if model == User:
                 user_id = data.get('user_id') or data.get('filter', {}).get('user_id')
+                logger.info(user_id)
                 user: User | None = await repo.get_one(user_id=int(user_id))
                 
                 if user is None:
@@ -787,6 +788,7 @@ async def db_worker(
 
             elif model == UserLinks:
                 user_id = data.get('user_id') or data.get('filter', {}).get('user_id')
+                logger.info(user_id)
                 user_links: UserLinks | None = await repo.get_one(user_id=int(user_id))
                 
                 if user_links is None:
