@@ -4,11 +4,21 @@ from redis.asyncio import Redis
 import asyncio
 import json
 from logger_setup import logger
+from config import settings as s
+from bot_in import bot
 
 
 class SkipTask(Exception):
     """Пропустить задачу без retry"""
     pass
+
+async def notifyer_of_down_wrk(service: str):
+    text = f"Service {service} is down for 10 minutes"
+
+    await bot.send_message(
+        chat_id=s.ADMIN_ID,
+        text=text
+    )
 
 
 def queue_worker(
@@ -48,6 +58,7 @@ def queue_worker(
                         cnt += 1
                         if cnt == 60:
                             logger.error(f"🚨 {worker_name}: unavailable for 10 minutes!")
+                            await notifyer_of_down_wrk(service=worker_name)
                             cnt = 0
                 
                 # Получаем задачу

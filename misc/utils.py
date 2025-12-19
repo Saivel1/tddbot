@@ -1,3 +1,7 @@
+# ============================================================================
+# IMPORTS
+# ============================================================================
+
 # Database / ORM
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, text
@@ -38,15 +42,18 @@ import json
 import asyncio
 import uuid
 
-# Other
+# Bot
 from bot_in import bot
+
+# Decorators
 from misc.decorators import queue_worker, SkipTask
 
 
-#TODO: Обработчик для платежей
+# ============================================================================
+# CONSTANTS
+# ============================================================================
 
 PRICE_PER_MONTH: int = 50
-
 
 MODEL_REGISTRY: Dict[str, Type] = {
     "User": User,
@@ -54,16 +61,91 @@ MODEL_REGISTRY: Dict[str, Type] = {
     "PaymentData": PaymentData
 }
 
-# Модели с уникальным user_id
 UNIQUE_USER_ID_MODELS = {User, UserLinks}
 
-async def notifyer_of_down_wrk(service: str):
-    text = f"Service {service} is down for 10 minutes"
 
-    await bot.send_message(
-        chat_id=s.ADMIN_ID,
-        text=text
-    )
+# ============================================================================
+# UTILITY FUNCTIONS
+# ============================================================================
+
+async def notifyer_of_down_wrk(service: str):
+    """Уведомление админа о падении сервиса"""
+    text = f"Service {service} is down for 10 minutes"
+    await bot.send_message(chat_id=s.ADMIN_ID, text=text)
+
+
+def deserialize_data(data: dict) -> dict:
+    """Конвертирует строковые datetime обратно в объекты datetime"""
+    result = {}
+    for key, value in data.items():
+        if key in ('model', 'type', 'filter'):
+            result[key] = value
+            continue
+        
+        if isinstance(value, str):
+            try:
+                result[key] = datetime.fromisoformat(value)
+            except (ValueError, AttributeError):
+                result[key] = value
+        elif isinstance(value, dict):
+            result[key] = deserialize_data(value)
+        else:
+            result[key] = value
+    
+    return result
+
+
+def normalize_for_comparison(data: dict) -> dict:
+    """Нормализует данные для корректного сравнения"""
+    normalized = {}
+    
+    for k, v in data.items():
+        if v is None:
+            continue
+        
+        if isinstance(v, datetime):
+            normalized[k] = v.isoformat()
+        elif isinstance(v, bool):
+            normalized[k] = int(v)
+        else:
+            normalized[k] = v
+    
+    return normalized
+
+
+async def to_link(lst_data: dict):
+    """Извлекает названия из ссылок"""
+    from urllib.parse import unquote
+    links = lst_data.get("links")
+    
+    if links is None:
+        logger.debug("❌ No links provided")
+        return None
+    
+    titles = []
+    for link in links:
+        sta = link.find("#")
+        encoded = link[sta+1:]
+        text = unquote(encoded)
+        titles.append(text)
+
+    logger.debug(f"✅ Extracted {len(titles)} titles")
+    return titles
+
+
+def _parse_user(user_json: str) -> UserModel | None:
+    """Парсит JSON строку в UserModel"""
+    try:
+        user_dict = json.loads(user_json)
+        return UserModel(**user_dict)
+    except Exception as e:
+        logger.error(f"❌ JSON parse error: {e}")
+        return None
+
+
+# ============================================================================
+# HEALTH CHECK FUNCTIONS
+# ============================================================================
 
 async def check_marzban_available() -> bool:
     """Проверка доступности Marzban"""
@@ -73,7 +155,7 @@ async def check_marzban_available() -> bool:
                 return res.status < 500
     except:
         return False
-    
+
 
 async def check_db_available() -> bool:
     """Проверяет доступность PostgreSQL"""
@@ -84,6 +166,10 @@ async def check_db_available() -> bool:
         except Exception:
             return False
 
+
+# ============================================================================
+# CACHE FUNCTIONS
+# ============================================================================
 
 async def is_cached(
     redis_cache: Redis,
@@ -178,16 +264,6 @@ async def is_cached(
         return None
 
 
-def _parse_user(user_json: str) -> UserModel | None:
-    """Парсит JSON строку в UserModel"""
-    try:
-        user_dict = json.loads(user_json)
-        return UserModel(**user_dict)
-    except Exception as e:
-        logger.error(f"❌ JSON parse error: {e}")
-        return None
-
-
 async def cache_popular_pay_time(redis_cache: Redis, user_id: int) -> str | None:
     """Получить или создать платёж для популярной суммы (50₽)"""
     
@@ -216,7 +292,7 @@ async def cache_popular_pay_time(redis_cache: Redis, user_id: int) -> str | None
                         'amount': 50,
                     }
                     
-                    await redis_cache.lpush("PAYMENT_QUEUE", json.dumps(payment_data))  # type: ignore # type: ignore
+                    await redis_cache.lpush("PAYMENT_QUEUE", json.dumps(payment_data)) # type: ignore
                     logger.info(f"📤 Payment queued: user_id={user_id}, amount=50₽")
                     
                     # Ждём обработки (максимум 10 секунд)
@@ -251,76 +327,6 @@ async def cache_popular_pay_time(redis_cache: Redis, user_id: int) -> str | None
     # Парсим и возвращаем URL
     pay_res = json.loads(pay_data)
     return pay_res['payment_url']
-
-@queue_worker(
-    queue_name="PAYMENT_QUEUE",
-    timeout=5,
-    max_retries=3
-)
-async def pub_listner(redis_cli: Redis, data: dict):
-                """Воркер для обработки платежей из очереди"""
-                
-                # try:
-                #     while True:
-                #         result = await redis_cli.brpop("PAYMENT_QUEUE", timeout=5) # type: ignore # type: ignore
-                        
-                #         if not result:
-                #             continue
-                        
-                #         _, message = result
-                #         logger.debug("📥 Payment task received")
-                        
-                #         try:
-                #             data = json.loads(message)
-                yoo_handl = YooPay()
-                logger.info("🚀 Payment worker started")
-                user_id = data['user_id']
-                amount = data['amount']
-                pay_str = f"POP_PAY_CHOOSE:{user_id}"
-                
-                # Проверяем что платёж ещё не создан (идемпотентность)
-                existing = await redis_cli.get(pay_str)
-                if existing:
-                    logger.debug(f"⏭️  Payment exists: user_id={user_id}")
-                    raise SkipTask
-                
-                # Создаём платёж
-                logger.info(f"💳 Creating payment: user_id={user_id}, amount={amount}₽")
-                res = await yoo_handl.create_payment(
-                    amount=amount,
-                    email="saivel.mezencev1@gmail.com",
-                    plan="1+9210"
-                )
-                
-                if res is None:
-                    logger.error(f"❌ Payment creation failed: user_id={user_id}")
-                    await asyncio.sleep(5)
-                    raise TimeoutError
-                
-                # Сохраняем результат
-                data_for_load = {
-                    "payment_url": res[0],
-                    "payment_id": res[1]
-                }
-
-                data_for_webhook = {
-                    "user_id": user_id,
-                    "amount": amount
-                }
-
-                web_wrk_label = f"YOO:{res[1]}"
-                await redis_cli.set(pay_str, json.dumps(data_for_load), ex=600)
-                await redis_cli.set(web_wrk_label, json.dumps(data_for_webhook), ex=700)
-                logger.info(f"✅ Payment created: user_id={user_id}, payment_id={res[1]}")
-                
-    #         except Exception as e:
-    #             logger.error(f"❌ Payment task error: {e}")
-    #             await redis_cli.lpush("PAYMENT_QUEUE", message) # type: ignore
-    #             await asyncio.sleep(5)
-                
-    # except asyncio.CancelledError:
-    #     logger.info("🛑 Payment worker stopped")
-    #     raise
 
 
 async def is_cached_payment(
@@ -392,6 +398,63 @@ async def worker_exsists(
     return False
 
 
+# ============================================================================
+# WORKERS
+# ============================================================================
+
+# --- Payment Creation Worker ---
+
+@queue_worker(
+    queue_name="PAYMENT_QUEUE",
+    timeout=5,
+    max_retries=3
+)
+async def pub_listner(redis_cli: Redis, data: dict):
+    """Воркер для обработки создания платежей"""
+    
+    yoo_handl = YooPay()
+    user_id = data['user_id']
+    amount = data['amount']
+    pay_str = f"POP_PAY_CHOOSE:{user_id}"
+    
+    # Проверяем что платёж ещё не создан (идемпотентность)
+    existing = await redis_cli.get(pay_str)
+    if existing:
+        logger.debug(f"⏭️  Payment exists: user_id={user_id}")
+        raise SkipTask
+    
+    # Создаём платёж
+    logger.info(f"💳 Creating payment: user_id={user_id}, amount={amount}₽")
+    res = await yoo_handl.create_payment(
+        amount=amount,
+        email="saivel.mezencev1@gmail.com",
+        plan="1+9210"
+    )
+    
+    if res is None:
+        logger.error(f"❌ Payment creation failed: user_id={user_id}")
+        await asyncio.sleep(5)
+        raise TimeoutError
+    
+    # Сохраняем результат
+    data_for_load = {
+        "payment_url": res[0],
+        "payment_id": res[1]
+    }
+
+    data_for_webhook = {
+        "user_id": user_id,
+        "amount": amount
+    }
+
+    web_wrk_label = f"YOO:{res[1]}"
+    await redis_cli.set(pay_str, json.dumps(data_for_load), ex=600)
+    await redis_cli.set(web_wrk_label, json.dumps(data_for_webhook), ex=700)
+    logger.info(f"✅ Payment created: user_id={user_id}, payment_id={res[1]}")
+
+
+# --- Trial Activation Worker ---
+
 @queue_worker(
     queue_name="TRIAL_ACTIVATION",
     timeout=5,
@@ -402,97 +465,86 @@ async def trial_activation_worker(
     session: AsyncSession,
     data: dict
 ):
-    # wrk_label = "TRIAL_ACTIVATION"
-    # logger.info("🚀 Trial activation worker started")
+    """Воркер для активации пробного периода"""
+    
+    repo = BaseRepository(session=session, model=User)
+    user = await repo.get_one(user_id=int(data["user_id"]))
+    
+    if not user:
+        user = await repo.create(user_id=int(data['user_id']))
+        logger.info(f"➕ User created: user_id={data['user_id']}")
+    else:
+        logger.debug(f"✅ User found: user_id={data['user_id']}")
+    
+    if user.trial_used:
+        logger.warning(f"⏭️  Trial already used: user_id={data['user_id']}")
+        raise SkipTask(f"⏭️  Trial already used: user_id={data['user_id']}")
 
-    # while True:
-    #     result = await redis_cli.brpop(wrk_label, timeout=5) # type: ignore
+    user_id = str(data['user_id'])
+    
+    # Проверяем пользователя в Marzban
+    logger.debug(f"🔍 Checking Marzban: username={user_id}")
+    async with MarzbanClient() as client:
+        user_marz = await client.get_user(username=user_id)
+    
+    sub_end_marz: int = 0
 
-    #     if not result:
-    #         continue 
-        
-    #     _, message = result
-    #     data = json.loads(message)
-    #     logger.info(f"📥 Trial task received: user_id={data.get('user_id')}")
-        
-    #     try:
-            repo = BaseRepository(session=session, model=User)
-            user = await repo.get_one(user_id=int(data["user_id"]))
-            
-            if not user:
-                user = await repo.create(user_id=int(data['user_id']))
-                logger.info(f"➕ User created: user_id={data['user_id']}")
-            else:
-                logger.debug(f"✅ User found: user_id={data['user_id']}")
-            
-            if user.trial_used:
-                logger.warning(f"⏭️  Trial already used: user_id={data['user_id']}")
-                raise SkipTask(f"⏭️  Trial already used: user_id={data['user_id']}")
+    if user_marz == 404:
+        logger.debug(f"➕ New user in Marzban: {user_id}")
+        data_marz: dict[str, Any] = {"type": "create", "user_id": user_id}
+    elif user_marz is None:
+        logger.error(f"❌ Marzban timeout: {user_id}")
+        raise TimeoutError
+    elif type(user_marz) == dict:
+        logger.debug(f"🔄 Existing user in Marzban: {user_id}")
+        data_marz: dict[str, Any] = {"type": "modify", "user_id": user_id}
+        sub_end_marz = user_marz['expire']
+    else:
+        raise TimeoutError
+    
+    # Вычисляем новую дату окончания
+    sub_end_marz = sub_end_marz if sub_end_marz > 0 else 0
+    date_now = datetime.now()
 
-            user_id = str(data['user_id'])
-            
-            logger.debug(f"🔍 Checking Marzban: username={user_id}")
-            async with MarzbanClient() as client:
-                user_marz = await client.get_user(username=user_id)
-            
-            sub_end_marz: int = 0
+    if user.subscription_end is None and sub_end_marz < int(date_now.timestamp()):
+        max_val: datetime = date_now
+    elif user.subscription_end:
+        max_val: datetime = max(datetime.fromtimestamp(sub_end_marz), date_now, user.subscription_end)
+    else:
+        max_val: datetime = max(datetime.fromtimestamp(sub_end_marz), date_now)
 
-            if user_marz == 404:
-                logger.debug(f"➕ New user in Marzban: {user_id}")
-                data_marz: dict[str, Any] = {"type": "create", "user_id": user_id}
-            elif user_marz is None:
-                logger.error(f"❌ Marzban timeout: {user_id}")
-                raise TimeoutError
-            elif type(user_marz) == dict:
-                logger.debug(f"🔄 Existing user in Marzban: {user_id}")
-                data_marz: dict[str, Any] = {"type": "modify", "user_id": user_id}
-                sub_end_marz = user_marz['expire']
-            else:
-                raise TimeoutError
-            
-            sub_end_marz = sub_end_marz if sub_end_marz > 0 else 0
-            date_now = datetime.now()
+    new_expire: datetime = max_val + timedelta(days=s.TRIAL_DAYS)
+    data_marz['expire'] = int(new_expire.timestamp())
 
-            if user.subscription_end is None and sub_end_marz < int(date_now.timestamp()):
-                max_val: datetime = date_now
-            elif user.subscription_end:
-                max_val: datetime = max(datetime.fromtimestamp(sub_end_marz), date_now, user.subscription_end)
-            else:
-                max_val: datetime = max(datetime.fromtimestamp(sub_end_marz), date_now)
+    # Отправляем задачи
+    logger.info(f"📤 Queueing Marzban task: user_id={user_id}, expire={new_expire}")
+    await redis_cli.lpush("MARZBAN", json.dumps(data_marz, sort_keys=True, default=str)) # type: ignore
 
-            new_expire: datetime = max_val + timedelta(days=s.TRIAL_DAYS)
-            data_marz['expire'] = int(new_expire.timestamp())
+    data_for_cache = {
+        "user_id": user_id,
+        "username": user.username,
+        "subscription_end": datetime.fromtimestamp(data_marz['expire']),
+        "trial_used": True
+    }
 
-            logger.info(f"📤 Queueing Marzban task: user_id={user_id}, expire={new_expire}")
-            await redis_cli.lpush("MARZBAN", json.dumps(data_marz, sort_keys=True, default=str)) # type: ignore
+    await redis_cli.lpush("DB", json.dumps({
+        "user_id": user_id,
+        "trial_used": True,
+        "model": "User",
+        "type": "create"
+    }, default=str, sort_keys=True)) # type: ignore
 
-            data_for_cache = {
-                "user_id": user_id,
-                "username": user.username,
-                "subscription_end": datetime.fromtimestamp(data_marz['expire']),
-                "trial_used": True
-            }
+    await redis_cli.set(f"USER_DATA:{user_id}", json.dumps(data_for_cache, default=str), ex=7200)
+    logger.info(f"✅ Trial activated: user_id={user_id}")
 
-            await redis_cli.lpush("DB", json.dumps({
-                "user_id": user_id,
-                "trial_used": True,
-                "model": "User",
-                "type": "create"
-            }, default=str, sort_keys=True)) # type: ignore # type: ignore
+    # Уведомление пользователя
+    await bot.send_message(
+        chat_id=int(user_id),
+        text="Пробный период активирован"
+    )
 
-            await redis_cli.set(f"USER_DATA:{user_id}", json.dumps(data_for_cache, default=str), ex=7200)
-            logger.info(f"✅ Trial activated: user_id={user_id}")
 
-            await bot.send_message(
-                chat_id=user_id,
-                text="Пробный период активирован"
-            )
-            
-        # except Exception as e:
-        #     logger.error(f"❌ Trial activation error: {e}")
-        #     await redis_cli.lpush(wrk_label, message) # type: ignore
-        #     await asyncio.sleep(10)
-
+# --- Marzban Worker ---
 
 @queue_worker(
     queue_name="MARZBAN",
@@ -505,142 +557,92 @@ async def marzban_worker(
     data: dict,
     panel_url: str | None = None,
 ):
-            """
-            Воркер для обработки запросов к Marzban API
-            data = 
-            type: create | modify 
-            user_id: str | int
-            expire: int
-
-            ADDITIONAL 
-            id: uuid from marzban
-            panel: custom panel to request
-            """
-
-    # wrk_label = 'MARZBAN'
-    # logger.info("🚀 Marzban worker started")
-
-    # cnt = 0
-    # while True:
-    #     # Ждём пока сервис станет доступен
-    #     while not await check_marzban_available():
-    #         logger.debug("⏳ Marzban unavailable, waiting 10s...")
-    #         await asyncio.sleep(10)
-    #         cnt += 1
-    #         if cnt == 60:
-    #             logger.error("🚨 Marzban unavailable for 10 minutes!")
-    #             await notifyer_of_down_wrk(service="Marzban")
-    #             cnt = 0
-        
-    #     result = await redis_cli.brpop(wrk_label, timeout=5) # type: ignore
-    #     cnt = 0
-        
-    #     if not result:
-    #         continue 
-        
-    #     _, message = result
-    #     data = json.loads(message)
-    #     logger.info(f"📥 Marzban task: type={data.get('type')}, user_id={data.get('user_id')}")
-        
-    #     try:
-            if data.get('panel'): 
-                panel_url = data['panel']
-                logger.debug(f"🎯 Using panel: {panel_url}")
-
-            async with MarzbanClient(base_url=panel_url if panel_url else s.M_DIGITAL_URL) as client:
-                marz_data: dict = {}
-
-                marz_data['username'] = str(data['user_id'])
-                marz_data['expire'] = data['expire']
-                
-                db_data: dict = {"model": "User"}
-                db_data_panels: dict = {"model": "UserLinks"}
-
-                if data['type'] == "create":
-                    logger.debug(f"➕ Creating user in Marzban: {marz_data['username']}")
-                    if data.get("id"): 
-                        marz_data['id'] = data['id']
-                    create_data = CreateUserMarzbanModel(**marz_data)
-                    res = await client.create(data=create_data)
-
-                    db_data['type'] = 'create'
-                    db_data['user_id'] = int(data['user_id'])
-                    db_data['subscription_end'] = datetime.fromtimestamp(data['expire'])
-
-                    db_data_panels['type'] = 'create'
-                    db_data_panels['user_id'] = int(data['user_id'])
-                    db_data_panels['uuid'] = str(uuid.uuid4())
-                
-                elif data["type"] == "modify":
-                    logger.debug(f"🔄 Modifying user in Marzban: {marz_data['username']}")
-                    res = await client.modify(**marz_data)
-
-                    db_data['type'] = 'update'
-                    db_data['filter'] = {"user_id": int(data['user_id'])}
-                    db_data['subscription_end'] = datetime.fromtimestamp(data['expire'])
-
-                    db_data_panels['type'] = 'update'
-                    db_data_panels['filter'] = {"user_id": int(data['user_id'])}
-
-                if res == 409:
-                    logger.warning(f"⚠️  User exists (409), converting to modify: {marz_data['username']}")
-                    res = await client.modify(**marz_data)
-
-                    db_data['type'] = 'update'
-                    db_data['filter'] = {"user_id": int(data['user_id'])}
-                    db_data['subscription_end'] = datetime.fromtimestamp(data['expire'])
-
-                    db_data_panels['type'] = 'update'
-                    db_data_panels['filter'] = {"user_id": int(data['user_id'])}
-
-                if type(res) != dict:
-                    logger.error(f"❌ Unexpected Marzban response type: {type(res)}")
-                    raise TimeoutError(f"Returns {type(res)} - {res}")
-
-                url: str = res['subscription_url']
-
-                if "dns1" in url:
-                    db_data_panels['panel1'] = url
-                    logger.debug(f"🔗 Panel1 link: user_id={data['user_id']}")
-                elif "dns2" in url:
-                    db_data_panels['panel2'] = url
-                    logger.debug(f"🔗 Panel2 link: user_id={data['user_id']}")
-                else:
-                    logger.error(f"❌ Unknown panel in URL: {url}")
-                    raise ValueError(f"Unknown panel {url}")
-                
-                logger.info(f"📤 Queueing DB tasks: user_id={data['user_id']}")
-                for db_op in (db_data_panels, db_data):
-                    await redis_cli.lpush("DB", json.dumps(db_op, sort_keys=True, default=str)) # type: ignore
-
-                logger.info(f"✅ Marzban task completed: user_id={data['user_id']}")
-                # return res
-                
-        # except Exception as e:
-        #     logger.error(f"❌ Marzban worker error: {e}")
-        #     await redis_cli.lpush(wrk_label, message) # type: ignore
-        #     await asyncio.sleep(10)
-
-
-def deserialize_data(data: dict) -> dict:
-    """Конвертирует строковые datetime обратно в объекты datetime"""
-    result = {}
-    for key, value in data.items():
-        if key in ('model', 'type', 'filter'):
-            result[key] = value
-            continue
-        
-        if isinstance(value, str):
-            try:
-                result[key] = datetime.fromisoformat(value)
-            except (ValueError, AttributeError):
-                result[key] = value
-        elif isinstance(value, dict):
-            result[key] = deserialize_data(value)
-        else:
-            result[key] = value
+    """
+    Воркер для обработки запросов к Marzban API
     
-    return result
+    Expected data format:
+        type: create | modify 
+        user_id: str | int
+        expire: int
+        id: (optional) uuid from marzban
+        panel: (optional) custom panel to request
+    """
+    
+    if data.get('panel'): 
+        panel_url = data['panel']
+        logger.debug(f"🎯 Using panel: {panel_url}")
+
+    async with MarzbanClient(base_url=panel_url if panel_url else s.M_DIGITAL_URL) as client:
+        marz_data: dict = {}
+
+        marz_data['username'] = str(data['user_id'])
+        marz_data['expire'] = data['expire']
+        
+        db_data: dict = {"model": "User"}
+        db_data_panels: dict = {"model": "UserLinks"}
+
+        if data['type'] == "create":
+            logger.debug(f"➕ Creating user in Marzban: {marz_data['username']}")
+            if data.get("id"): 
+                marz_data['id'] = data['id']
+            create_data = CreateUserMarzbanModel(**marz_data)
+            res = await client.create(data=create_data)
+
+            db_data['type'] = 'create'
+            db_data['user_id'] = int(data['user_id'])
+            db_data['subscription_end'] = datetime.fromtimestamp(data['expire'])
+
+            db_data_panels['type'] = 'create'
+            db_data_panels['user_id'] = int(data['user_id'])
+            db_data_panels['uuid'] = str(uuid.uuid4())
+        
+        elif data["type"] == "modify":
+            logger.debug(f"🔄 Modifying user in Marzban: {marz_data['username']}")
+            res = await client.modify(**marz_data)
+
+            db_data['type'] = 'update'
+            db_data['filter'] = {"user_id": int(data['user_id'])}
+            db_data['subscription_end'] = datetime.fromtimestamp(data['expire'])
+
+            db_data_panels['type'] = 'update'
+            db_data_panels['filter'] = {"user_id": int(data['user_id'])}
+
+        if res == 409:
+            logger.warning(f"⚠️  User exists (409), converting to modify: {marz_data['username']}")
+            res = await client.modify(**marz_data)
+
+            db_data['type'] = 'update'
+            db_data['filter'] = {"user_id": int(data['user_id'])}
+            db_data['subscription_end'] = datetime.fromtimestamp(data['expire'])
+
+            db_data_panels['type'] = 'update'
+            db_data_panels['filter'] = {"user_id": int(data['user_id'])}
+
+        if type(res) != dict:
+            logger.error(f"❌ Unexpected Marzban response type: {type(res)}")
+            raise TimeoutError(f"Returns {type(res)} - {res}")
+
+        url: str = res['subscription_url']
+
+        if "dns1" in url:
+            db_data_panels['panel1'] = url
+            logger.debug(f"🔗 Panel1 link: user_id={data['user_id']}")
+        elif "dns2" in url:
+            db_data_panels['panel2'] = url
+            logger.debug(f"🔗 Panel2 link: user_id={data['user_id']}")
+        else:
+            logger.error(f"❌ Unknown panel in URL: {url}")
+            raise ValueError(f"Unknown panel {url}")
+        
+        # Отправляем задачи в DB
+        logger.info(f"📤 Queueing DB tasks: user_id={data['user_id']}")
+        for db_op in (db_data_panels, db_data):
+            await redis_cli.lpush("DB", json.dumps(db_op, sort_keys=True, default=str)) # type: ignore
+
+        logger.info(f"✅ Marzban task completed: user_id={data['user_id']}")
+
+
+# --- Database Worker ---
 
 @queue_worker(
     queue_name="DB",
@@ -654,197 +656,149 @@ async def db_worker(
     data: dict,
     process_once: bool = False
 ):
-
-    # wrk_label = 'DB'
-    # cnt = 0
+    """
+    Воркер для обработки операций с БД из очереди
     
-    # logger.info(f"🚀 DB Worker started (process_once={process_once})")
+    Типы операций: Create, Update
+    Автоматическая конвертация операций при необходимости
+    """
     
-    # while True:
-    #     # Проверка доступности БД
-    #     while not await check_db_available(session):
-    #         logger.debug("⏳ DB unavailable, waiting 10s...")
-    #         await asyncio.sleep(10)
-    #         cnt += 1
-    #         if cnt == 60:
-    #             logger.error("🚨 DB unavailable for 10 minutes!")
-    #             await notifyer_of_down_wrk(service="DB")
-    #             cnt = 0
+    logger.info(f"📥 DB task: model={data.get('model')}, type={data.get('type')}")
+    
+    data = deserialize_data(data)
+    
+    model = MODEL_REGISTRY.get(data['model'])
+    if not model:
+        logger.error(f"❌ Unknown model: {data['model']}")
+        raise ValueError(f"Unknown model: {data['model']}")
+    
+    repo = BaseRepository(session=session, model=model)
+    data_type: str = data['type'].lower()
+    
+    db_data = {
+        k: v for k, v in data.items() 
+        if k not in ("model", "type", "filter")
+    }
+    
+    # Проверка существования для моделей с user_id
+    if model in UNIQUE_USER_ID_MODELS:
+        user_id = data.get('user_id') or data.get('filter', {}).get('user_id')
         
-    #     result = await redis_cli.brpop(wrk_label, timeout=5) # type: ignore
-    #     cnt = 0
+        if not user_id:
+            logger.error(f"❌ Missing user_id for {model.__name__}")
+            raise ValueError(f"{model.__name__} requires 'user_id' field")
         
-    #     if not result:
-    #         if process_once:
-    #             logger.debug("✅ No tasks, exiting")
-    #             return None
-    #         continue
+        user_id = int(user_id)
+        logger.debug(f"🔍 Checking: user_id={user_id}")
         
-    #     _, message = result
+        existing = await repo.get_one(user_id=user_id)
         
-    #     try:
-    #         data = json.loads(message)
-            """
-            Воркер для обработки операций с БД из очереди
-            Типы: Create, Update
-            Автоматическая конвертация операций при необходимости
-            """
-            logger.info(f"📥 DB task: model={data.get('model')}, type={data.get('type')}")
+        if existing is not None:
+            logger.debug(f"📌 Record exists: user_id={user_id}")
             
-            data = deserialize_data(data)
-            
-            model = MODEL_REGISTRY.get(data['model'])
-            if not model:
-                logger.error(f"❌ Unknown model: {data['model']}")
-                raise ValueError(f"Unknown model: {data['model']}")
-            
-            repo = BaseRepository(session=session, model=model)
-            data_type: str = data['type'].lower()
-            
-            db_data = {
-                k: v for k, v in data.items() 
-                if k not in ("model", "type", "filter")
+            current_data = {
+                k: v for k, v in existing.as_dict().items() 
+                if v is not None
             }
             
-            # Проверка существования для моделей с user_id
-            if model in UNIQUE_USER_ID_MODELS:
-                user_id = data.get('user_id') or data.get('filter', {}).get('user_id')
-                
-                if not user_id:
-                    logger.error(f"❌ Missing user_id for {model.__name__}")
-                    raise ValueError(f"{model.__name__} requires 'user_id' field")
-                
-                user_id = int(user_id)
-                logger.debug(f"🔍 Checking: user_id={user_id}")
-                
-                existing = await repo.get_one(user_id=user_id)
-                
-                if existing is not None:
-                    logger.debug(f"📌 Record exists: user_id={user_id}")
-                    
-                    current_data = {
-                        k: v for k, v in existing.as_dict().items() 
-                        if v is not None
-                    }
-                    
-                    new_data = {
-                        k: v for k, v in db_data.items()
-                        if k != 'user_id'
-                    }
-                    
-                    has_changes = False
-                    for key, new_value in new_data.items():
-                        current_value = current_data.get(key)
-                        
-                        if isinstance(new_value, datetime):
-                            new_value = new_value.isoformat()
-                        if isinstance(current_value, datetime):
-                            current_value = current_value.isoformat()
-                        
-                        if new_value != current_value:
-                            has_changes = True
-                            logger.debug(f"📝 Change: {key}={current_value}→{new_value}")
-                            break
-                    
-                    if not has_changes:
-                        logger.debug(f"⏭️  No changes: user_id={user_id}")
-                        if process_once:
-                            return 'skipped'
-                        raise SkipTask
-                    
-                    if data_type == "create":
-                        logger.info(f"🔄 CREATE→UPDATE: user_id={user_id}")
-                        data_type = 'update'
-                        data['filter'] = {'user_id': user_id}
-                        db_data = {k: v for k, v in db_data.items() if k != 'user_id'}
-                
-                else:
-                    logger.debug(f"✨ No record: user_id={user_id}")
-                    
-                    # Конвертируем UPDATE → CREATE
-                    if data_type == "update":
-                        logger.info(f"🔄 UPDATE→CREATE: user_id={user_id}")
-                        data_type = 'create'
-                        
-                        if 'filter' in data and 'user_id' in data['filter']:
-                            db_data['user_id'] = user_id
-                        
-                        if model == UserLinks:
-                            db_data['uuid'] = str(uuid.uuid4())
-
-                        data.pop('filter', None)
+            new_data = {
+                k: v for k, v in db_data.items()
+                if k != 'user_id'
+            }
             
-            # Выполняем операцию
+            has_changes = False
+            for key, new_value in new_data.items():
+                current_value = current_data.get(key)
+                
+                if isinstance(new_value, datetime):
+                    new_value = new_value.isoformat()
+                if isinstance(current_value, datetime):
+                    current_value = current_value.isoformat()
+                
+                if new_value != current_value:
+                    has_changes = True
+                    logger.debug(f"📝 Change: {key}={current_value}→{new_value}")
+                    break
+            
+            if not has_changes:
+                logger.debug(f"⏭️  No changes: user_id={user_id}")
+                if process_once:
+                    return 'skipped'
+                raise SkipTask
+            
             if data_type == "create":
-                logger.info(f"➕ Creating {model.__name__}")
-                res = await repo.create(**db_data)
-                logger.info(f"✅ Created: {res}")
-                result_type = "create"
-
-                # if model == UserLinks:
-                #     user_id_int: int = int(db_data["user_id"])
-                #     logger.debug(f"🔗 Fetching UserLinks: user_id={user_id_int}")
-                    
-                #     links_cache = await repo.get_one(user_id=user_id_int)
-                #     if not links_cache:
-                #         logger.error(f"❌ UserLinks not found after creation: user_id={user_id_int}")
-                #         raise ValueError(f"UserLinks not found: user_id={user_id_int}")
-                    
-                #     logger.debug(f"✅ UserLinks fetched: user_id={user_id_int}")
-                
-            elif data_type == "update":
-                filter_data = data.get('filter', {})
-                
-                if not filter_data:
-                    logger.error("❌ Update requires filter")
-                    raise ValueError("Update requires 'filter' parameter")
-                
-                update_data = {k: v for k, v in db_data.items() if k != 'user_id'}
-                
-                logger.info(f"🔄 Updating {model.__name__}: {filter_data}")
-                res = await repo.update(data=update_data, **filter_data)
-                logger.info(f"✅ Updated: {res} rows")
-                result_type = 'update'
+                logger.info(f"🔄 CREATE→UPDATE: user_id={user_id}")
+                data_type = 'update'
+                data['filter'] = {'user_id': user_id}
+                db_data = {k: v for k, v in db_data.items() if k != 'user_id'}
+        
+        else:
+            logger.debug(f"✨ No record: user_id={user_id}")
             
-            else:
-                logger.error(f"❌ Unknown type: {data_type}")
-                raise ValueError(f"Unknown operation type: {data_type}")
-            
-
-            if model == User:
-                user_id = db_data.get('user_id') or data.get('filter', {}).get('user_id')
-                user: User | None = await repo.get_one(user_id=int(user_id))
+            # Конвертируем UPDATE → CREATE
+            if data_type == "update":
+                logger.info(f"🔄 UPDATE→CREATE: user_id={user_id}")
+                data_type = 'create'
                 
-                if user is None:
-                    raise ValueError
+                if 'filter' in data and 'user_id' in data['filter']:
+                    db_data['user_id'] = user_id
                 
-                user_data = user.as_dict()
-                await redis_cli.set(f"USER_DATA:{user_id}", json.dumps(user_data, default=str), ex=3600)
+                if model == UserLinks:
+                    db_data['uuid'] = str(uuid.uuid4())
 
-            elif model == UserLinks:
-                user_id = db_data.get('user_id') or data.get('filter', {}).get('user_id')
-                user_links: UserLinks | None = await repo.get_one(user_id=int(user_id))
-                
-                if user_links is None:
-                    raise ValueError
-                
-                user_data = user_links.as_dict()
-                await redis_cli.set(f"USER_UUID:{user_id}", json.dumps(user_data['uuid'], default=str), ex=3600)
+                data.pop('filter', None)
+    
+    # Выполняем операцию
+    if data_type == "create":
+        logger.info(f"➕ Creating {model.__name__}")
+        res = await repo.create(**db_data)
+        logger.info(f"✅ Created: {res}")
+        result_type = "create"
+        
+    elif data_type == "update":
+        filter_data = data.get('filter', {})
+        
+        if not filter_data:
+            logger.error("❌ Update requires filter")
+            raise ValueError("Update requires 'filter' parameter")
+        
+        update_data = {k: v for k, v in db_data.items() if k != 'user_id'}
+        
+        logger.info(f"🔄 Updating {model.__name__}: {filter_data}")
+        res = await repo.update(data=update_data, **filter_data)
+        logger.info(f"✅ Updated: {res} rows")
+        result_type = 'update'
+    
+    else:
+        logger.error(f"❌ Unknown type: {data_type}")
+        raise ValueError(f"Unknown operation type: {data_type}")
+    
+    # Обновляем кеш
+    if model == User:
+        user_id = db_data.get('user_id') or data.get('filter', {}).get('user_id')
+        user: User | None = await repo.get_one(user_id=int(user_id))
+        
+        if user is None:
+            raise ValueError
+        
+        user_data = user.as_dict()
+        await redis_cli.set(f"USER_DATA:{user_id}", json.dumps(user_data, default=str), ex=3600)
 
-            if process_once:
-                return result_type
-                
-        # except Exception as e:
-        #     logger.error(f"❌ DB worker error: {e}")
-        #     await redis_cli.lpush(wrk_label, message) # type: ignore
-            
-        #     if process_once:
-        #         raise
-            
-        #     await asyncio.sleep(1)
+    elif model == UserLinks:
+        user_id = db_data.get('user_id') or data.get('filter', {}).get('user_id')
+        user_links: UserLinks | None = await repo.get_one(user_id=int(user_id))
+        
+        if user_links is None:
+            raise ValueError
+        
+        user_data = user_links.as_dict()
+        await redis_cli.set(f"USER_UUID:{user_id}", json.dumps(user_data['uuid'], default=str), ex=3600)
+
+    if process_once:
+        return result_type
 
 
-# ============================   Payment WRK   ======================================
+# --- Payment Processing Worker ---
 
 @queue_worker(
     queue_name="YOO:PROCEED",
@@ -856,156 +810,100 @@ async def payment_wrk(
     redis_cli: Redis,
     data: dict
 ):
-    # logger.info("🚀 YOO PAYMENT Worker started")
-    # wrk_label = 'YOO:PROCEED'
-    # cnt = 0
+    """Воркер для обработки успешных платежей"""
     
-    # while True:
-    #     # Проверка доступности Marzban
-    #     while not await check_marzban_available():
-    #         logger.debug("⏳ Marzban unavailable, waiting 10s...")
-    #         await asyncio.sleep(10)
-    #         cnt += 1
-    #         if cnt == 60:
-    #             logger.error("🚨 Marzban unavailable for 10 minutes!")
-    #             await notifyer_of_down_wrk(service="Marzban")
-    #             cnt = 0
-        
-    #     # Получаем задачу из очереди
-    #     result = await redis_cli.brpop(wrk_label, timeout=5) #type: ignore
-    #     cnt = 0
-        
-    #     if not result:
-    #         continue
-        
-    #     _, message = result
-    #     logger.info(f"📥 Payment task received: {message[:200]}...")
-        
-    #     try:
-    #         data = json.loads(message)
-            logger.info(f"💰 Processing payment: user_id={data.get('user_id')}, amount={data.get('amount')}₽")
-            
-            # Задача в Marzban
-            mrzb_data: dict = {
-                "user_id": data['user_id']
-            }
-            
-            logger.debug(f"🔍 Checking user in Marzban: {data['user_id']}")
-            async with MarzbanClient() as client:
-                user = await client.get_user(username=data['user_id'])
-            
-            if isinstance(user, dict):
-                logger.debug(f"✅ User exists in Marzban: {data['user_id']}")
-                mrzb_data['type'] = 'modify'
-                raw_expire: int = user['expire']
-                obj_expire: datetime = datetime.fromtimestamp(raw_expire)
-                logger.debug(f"📅 Current expire: {obj_expire} (timestamp={raw_expire})")
-                
-            elif user == 404:
-                logger.debug(f"➕ New user in Marzban: {data['user_id']}")
-                mrzb_data['type'] = 'create'
-                obj_expire: datetime = datetime.now()
-                
-            else:
-                logger.error(f"❌ Unexpected Marzban response: {type(user)}")
-                raise TimeoutError
-            
-            # Вычисляем новый expire
-            if obj_expire < datetime.now():
-                logger.debug(f"⚠️  Expire in past, using now: {obj_expire} → {datetime.now()}")
-                obj_expire = datetime.now()
-            
-            days = int(data['amount']) // PRICE_PER_MONTH * 30
-            inc_expire: datetime = obj_expire + timedelta(days=days)
-            
-            logger.info(f"📆 Subscription extended: +{days} days, new expire={inc_expire}")
-            
-            mrzb_data['expire'] = int(inc_expire.timestamp())
-            
-            # Отправляем в Marzban воркер
-            logger.debug(f"📤 Queueing Marzban task: type={mrzb_data['type']}, expire={inc_expire}")
-            await redis_cli.lpush(
-                "MARZBAN",
-                json.dumps(mrzb_data, sort_keys=True, default=str)
-            ) #type: ignore
-
-            queue_size = await redis_cli.llen("MARZBAN") #type: ignore
-            logger.info(f"📊 MARZBAN queue size after push: {queue_size}")
-
-            # ✅ Проверка содержимого задачи
-            last_task = await redis_cli.lindex("MARZBAN", 0) #type: ignore
-            logger.debug(f"📝 Last MARZBAN task: {last_task}")
-            
-            # Задачи в БД
-            user_db: dict = {
-                'model': "User",
-                "type": "create",
-                "user_id": data['user_id'],
-                "subscription_end": inc_expire
-            }
-            
-            payment_db: dict = {
-                'model': "PaymentData",
-                "type": "create",
-                "payment_id": data['order_id'],
-                'user_id': data['user_id'],
-                "amount": data['amount']
-            }
-            
-            logger.debug(f"📤 Queueing DB tasks: User + PaymentData for user_id={data['user_id']}")
-            for db_op in (user_db, payment_db):
-                await redis_cli.lpush(
-                    "DB",
-                    json.dumps(db_op, sort_keys=True, default=str)
-                ) #type: ignore
-            
-            logger.info(f"✅ Payment processed: user_id={data['user_id']}, amount={data['amount']}₽, order_id={data['order_id']}")
-
-            # сообщение что обработан
-
-            await bot.send_message(
-                chat_id=int(data['user_id']),
-                text=f"Оплата прошла успешно на сумму {data['amount']}"
-            )
-
-            await bot.send_message(
-                chat_id=int(s.ADMIN_ID),
-                text=f"Оплата прошла успешно на сумму {data['amount']} для пользователя `{data['user_id']}`",
-                parse_mode='MARKDOWN'
-            )
-            
-        # except Exception as e:
-        #     logger.error(f"❌ Payment worker error: {e}")
-        #     logger.error(f"📋 Failed message: {message}")
-        #     import traceback
-        #     logger.error(f"🔍 Traceback:\n{traceback.format_exc()}")
-            
-        #     logger.warning(f"♻️  Re-queuing failed payment task")
-        #     await redis_cli.lpush(wrk_label, message) #type: ignore
-            
-        #     await asyncio.sleep(5)  # Пауза перед повтором
-
-
-# ============================   Payment WRK   ======================================           
-
-
-def normalize_for_comparison(data: dict) -> dict:
-    """Нормализует данные для корректного сравнения"""
-    normalized = {}
+    logger.info(f"💰 Processing payment: user_id={data.get('user_id')}, amount={data.get('amount')}₽")
     
-    for k, v in data.items():
-        if v is None:
-            continue
-        
-        if isinstance(v, datetime):
-            normalized[k] = v.isoformat()
-        elif isinstance(v, bool):
-            normalized[k] = int(v)
-        else:
-            normalized[k] = v
+    # Формируем данные для Marzban
+    mrzb_data: dict = {
+        "user_id": data['user_id']
+    }
     
-    return normalized
+    # Проверяем пользователя в Marzban
+    logger.debug(f"🔍 Checking user in Marzban: {data['user_id']}")
+    async with MarzbanClient() as client:
+        user = await client.get_user(username=data['user_id'])
+    
+    if isinstance(user, dict):
+        logger.debug(f"✅ User exists in Marzban: {data['user_id']}")
+        mrzb_data['type'] = 'modify'
+        raw_expire: int = user['expire']
+        obj_expire: datetime = datetime.fromtimestamp(raw_expire)
+        logger.debug(f"📅 Current expire: {obj_expire} (timestamp={raw_expire})")
+        
+    elif user == 404:
+        logger.debug(f"➕ New user in Marzban: {data['user_id']}")
+        mrzb_data['type'] = 'create'
+        obj_expire: datetime = datetime.now()
+        
+    else:
+        logger.error(f"❌ Unexpected Marzban response: {type(user)}")
+        raise TimeoutError
+    
+    # Вычисляем новый expire
+    if obj_expire < datetime.now():
+        logger.debug(f"⚠️  Expire in past, using now: {obj_expire} → {datetime.now()}")
+        obj_expire = datetime.now()
+    
+    days = int(data['amount']) // PRICE_PER_MONTH * 30
+    inc_expire: datetime = obj_expire + timedelta(days=days)
+    
+    logger.info(f"📆 Subscription extended: +{days} days, new expire={inc_expire}")
+    
+    mrzb_data['expire'] = int(inc_expire.timestamp())
+    
+    # Отправляем в Marzban воркер
+    logger.debug(f"📤 Queueing Marzban task: type={mrzb_data['type']}, expire={inc_expire}")
+    await redis_cli.lpush(
+        "MARZBAN",
+        json.dumps(mrzb_data, sort_keys=True, default=str)
+    ) # type: ignore
 
+    queue_size = await redis_cli.llen("MARZBAN") # type: ignore
+    logger.info(f"📊 MARZBAN queue size after push: {queue_size}")
+
+    last_task = await redis_cli.lindex("MARZBAN", 0) # type: ignore
+    logger.debug(f"📝 Last MARZBAN task: {last_task}")
+    
+    # Задачи в БД
+    user_db: dict = {
+        'model': "User",
+        "type": "create",
+        "user_id": data['user_id'],
+        "subscription_end": inc_expire
+    }
+    
+    payment_db: dict = {
+        'model': "PaymentData",
+        "type": "create",
+        "payment_id": data['order_id'],
+        'user_id': data['user_id'],
+        "amount": data['amount']
+    }
+    
+    logger.debug(f"📤 Queueing DB tasks: User + PaymentData for user_id={data['user_id']}")
+    for db_op in (user_db, payment_db):
+        await redis_cli.lpush(
+            "DB",
+            json.dumps(db_op, sort_keys=True, default=str)
+        ) # type: ignore
+    
+    logger.info(f"✅ Payment processed: user_id={data['user_id']}, amount={data['amount']}₽, order_id={data['order_id']}")
+
+    # Уведомления
+    await bot.send_message(
+        chat_id=int(data['user_id']),
+        text=f"Оплата прошла успешно на сумму {data['amount']}"
+    )
+
+    await bot.send_message(
+        chat_id=int(s.ADMIN_ID),
+        text=f"Оплата прошла успешно на сумму {data['amount']} для пользователя `{data['user_id']}`",
+        parse_mode='MARKDOWN'
+    )
+
+
+# --- Nightly Cache Refresh Worker ---
 
 async def nightly_cache_refresh_worker(
     redis_cache: Redis,
@@ -1068,23 +966,3 @@ async def nightly_cache_refresh_worker(
                 
         except Exception as e:
             logger.error(f"❌ Nightly refresh error: {e}")
-
-
-async def to_link(lst_data: dict):
-    """Извлекает названия из ссылок"""
-    from urllib.parse import unquote
-    links = lst_data.get("links")
-    
-    if links is None:
-        logger.debug("❌ No links provided")
-        return None
-    
-    titles = []
-    for link in links:
-        sta = link.find("#")
-        encoded = link[sta+1:]
-        text = unquote(encoded)
-        titles.append(text)
-
-    logger.debug(f"✅ Extracted {len(titles)} titles")
-    return titles
