@@ -36,9 +36,6 @@ class BaseRepository(Generic[T]):
             .values(**data)
             .filter_by(**filter)
         )
-        print(stmt)
         res = await self.session.execute(stmt)
-        print('Excetuted')
         await self.session.commit()
-        print('Commited')
         return res.rowcount #type: ignore

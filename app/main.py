@@ -230,7 +230,7 @@ async def webhook_marz(
 
 
     if action == 'user_created':
-        wrk_data['id'] = data[0]["proxies"]["vless"]['id']
+        wrk_data['id'] = data[0]['user']["proxies"]["vless"]['id']
         wrk_data['type'] = 'create'
         await redis_cli.lpush( #type: ignore
             "MARZBAN",
