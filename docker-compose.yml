@@ -102,8 +102,7 @@ services:
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
-      - ./certbot/conf:/etc/letsencrypt:ro
-      - ./certbot/www:/var/www/certbot:ro
+      - ./certs:/etc/nginx/certs:ro  # ← ВАЖНО: тот же ./certs с хоста
       - ./logs/nginx:/var/log/nginx
     depends_on:
       - webapp
