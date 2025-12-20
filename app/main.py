@@ -76,15 +76,13 @@ async def lifespan(app: Litestar):
     await redis.ping()  #type: ignore
     print("✅ Redis connected")
     
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+    except:
+        pass
     print("✅ Database tables created")
 
-    # Webhook setup
-    # await bot.delete_webhook()
-    # webhook_url = f"{s.WEBHOOK_URL}"
-    # await bot.set_webhook(url=webhook_url, drop_pending_updates=True)
-    # print(f"✅ Webhook установлен: {webhook_url}")
 
     # ✅ Создаём долгоживущую сессию для воркеров
     worker_session = async_session_maker()
@@ -116,13 +114,15 @@ async def lifespan(app: Litestar):
     # Закрываем сессию воркеров
     await worker_session.close()
     print("✅ Worker session closed")
-
-    # async with engine.begin() as conn:
-    #     await conn.run_sync(Base.metadata.drop_all)
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.drop_all)
+    except: 
+        pass
     print("✅ Database tables dropped")
     
-    # await bot.delete_webhook()
-    # await bot.session.close()
+    await bot.delete_webhook()
+    await bot.session.close()
 
 
 async def provide_redis() -> Redis: #type: ignore
