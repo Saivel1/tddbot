@@ -1,8 +1,11 @@
 from granian import Granian
 from granian.constants import Loops, Interfaces
+from setup_webhook import setup_webhook
+import asyncio
 
 
 if __name__ == "__main__":
+    asyncio.run(setup_webhook())
     Granian(
         target="app.main:app",
         address="127.0.0.1",
