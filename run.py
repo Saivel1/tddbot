@@ -33,7 +33,7 @@ if __name__ == "__main__":
         asyncio.run(setup_webhook())
         Granian(
             target="app.main:app",
-            address="127.0.0.1",
+            address="0.0.0.0",
             port=8000,
             workers=2,
             loop=Loops.asyncio,
