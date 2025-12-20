@@ -20,6 +20,8 @@ async def notifyer_of_down_wrk(service: str):
         text=text
     )
 
+TIME_TO_NOTIFY: int = 60 #После скольки попыток трубить об ошибке
+
 
 def queue_worker(
     queue_name: str,
@@ -56,7 +58,7 @@ def queue_worker(
                         logger.debug(f"⏳ {worker_name}: service unavailable, waiting 10s...")
                         await asyncio.sleep(10)
                         cnt += 1
-                        if cnt == 6:
+                        if cnt == TIME_TO_NOTIFY:
                             logger.error(f"🚨 {worker_name}: unavailable for 10 minutes!")
                             await notifyer_of_down_wrk(service=worker_name)
                             cnt = 0
@@ -113,9 +115,10 @@ def queue_worker(
                             await redis_cli.lpush(queue_name, message) # type: ignore
 
                             cnt += 1
-                            if cnt == 6:
+                            if cnt == TIME_TO_NOTIFY*10:
                                 logger.error(f"🚨 {worker_name}: unavailable for 10 minutes!")
                                 await notifyer_of_down_wrk(service=worker_name)
+                                await asyncio.sleep(10)
                                 cnt = 0
                             
                             if process_once:
