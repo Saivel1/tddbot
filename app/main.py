@@ -128,7 +128,7 @@ async def lifespan(app: Litestar):
 
 async def provide_redis() -> Redis: #type: ignore
     """Production Redis provider"""
-    redis = Redis(host='localhost', port=6379, password=s.REDIS_PASS, decode_responses=True)
+    redis = Redis(host=s.REDIS_HOST, port=s.REDIS_PORT, password=s.REDIS_PASS, decode_responses=True)
     try:
         yield redis #type: ignore
     finally:
