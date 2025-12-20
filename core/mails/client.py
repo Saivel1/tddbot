@@ -6,6 +6,7 @@ import secrets
 import string
 import re
 
+
 def run_docker_command(command: list) -> tuple[bool, str]:
     """Выполнить команду в контейнере mailserver"""
     try:
@@ -26,6 +27,7 @@ def run_docker_command(command: list) -> tuple[bool, str]:
     except Exception as e:
         logger.error(f"Unexpected error: {e}")
         return False, str(e)
+
 
 async def list_mailboxes():
     """Список всех ящиков"""
