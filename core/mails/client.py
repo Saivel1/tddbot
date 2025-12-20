@@ -1,8 +1,90 @@
+import subprocess
 import aiohttp
 from config import settings as s
 from logger_setup import logger
 import secrets
 import string
+import re
+
+def run_docker_command(command: list) -> tuple[bool, str]:
+    """Выполнить команду в контейнере mailserver"""
+    try:
+        result = subprocess.run(
+            ["docker", "exec", "mailserver"] + command,
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=10
+        )
+        return True, result.stdout
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Command failed: {e.stderr}")
+        return False, e.stderr
+    except subprocess.TimeoutExpired:
+        logger.error("Command timeout")
+        return False, "Timeout"
+    except Exception as e:
+        logger.error(f"Unexpected error: {e}")
+        return False, str(e)
+
+async def list_mailboxes():
+    """Список всех ящиков"""
+    success, output = run_docker_command(["setup", "email", "list"])
+
+    if success:
+        mailboxes = []
+
+        # Регулярка для извлечения email
+        email_pattern = r'[\w\.-]+@[\w\.-]+\.\w+'
+
+        for line in output.strip().split("\n"):
+            match = re.search(email_pattern, line)
+            if match:
+                mailboxes.append(match.group(0))
+
+        return {
+            "count": len(mailboxes),
+            "mailboxes": mailboxes
+        }
+    else:
+        return None
+
+
+async def check_mailbox_exists(email: str):
+    """Проверить существование ящика"""
+    try:
+        response = await list_mailboxes()
+        if response is None:
+            return None
+
+        exists = email in response["mailboxes"]
+        
+        return {
+            "exists": exists,
+            "email": email
+        }
+    except Exception as e:
+        logger.error(f"Error checking mailbox: {e}")
+        return None
+    
+
+
+async def create_mailbox(mailbox: str, pwd: str):
+    """Создать почтовый ящик"""
+    logger.info(f"Creating mailbox: {mailbox}")
+    
+    success, output = run_docker_command([
+        "setup", "email", "add", mailbox, pwd
+    ])
+    
+    if success:
+        return {
+            "status": "created",
+            "email": mailbox
+        }
+    else:
+        return None
+    
 
 def generate_random_password(length: int = 16) -> str:
     """
@@ -50,30 +132,27 @@ class Anymessage():
 
 async def create_user_mailbox(user_id: int):
     """Создать почтовый ящик для пользователя"""
-    email = f"user{user_id}@ivvpn.world"
+    email = f"user{user_id}@docs-sharing.world"
     
     try:
-        # Проверяем что не существует
-        async with aiohttp.ClientSession() as session:
-            async with session.get(f"http://localhost:8001/api/mailbox/check/{email}") as response:
-                data = await response.json()
-                
-                if data["exists"]:
-                    print(f"Ящик {email} уже существует")
-                    return email
-            
-            # Создаём новый
-            password = generate_random_password()
-            
-            async with session.post(
-                "http://localhost:8001/api/mailbox/create",
-                json={"email": email, "password": password}
-            ) as response:
-                if response.status == 200:
-                    logger.info(f'Содан email: {email} password: {password}')
-                    return email
-                else:
-                    return None
+        data = await check_mailbox_exists(email=email)
+
+        if data is None:
+            return None
+
+        if data["exists"]:
+            logger.info(f"Ящик {email} уже существует")
+            return email
+
+        password = generate_random_password()
+
+        email = await create_mailbox(
+            mailbox=email,
+            pwd=password
+        )
+
+        logger.info(f'Содан email: {email} password: {password}')
+        return email
     except Exception as e:
         logger.error(e)
         return None
