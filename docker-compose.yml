@@ -56,7 +56,56 @@ services:
         limits:
           cpus: '2.0'
           memory: 2G
+  postgres:
+    image: postgres:16
+    container_name: my_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    ports:
+      - "5432:5432"
+    networks:
+      - vpnbot_internal
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./config/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
+    command: ["postgres", "-c", "hba_file=/etc/postgresql/pg_hba.conf"]
 
+  nginx:
+    image: nginx:alpine
+    container_name: vpnbot-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./certbot/conf:/etc/letsencrypt:ro
+      - ./certbot/www:/var/www/certbot:ro
+      - ./logs/nginx:/var/log/nginx
+    depends_on:
+      - webapp
+    networks:
+      - vpnbot_external
+      - vpnbot_internal
+    command: '/bin/sh -c ''while :; do sleep 6h & wait $${!}; nginx -s reload; done & nginx -g "daemon off;"'''
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+  certbot:
+    image: certbot/certbot:latest
+    container_name: vpnbot-certbot
+    volumes:
+      - ./certbot/conf:/etc/letsencrypt
+      - ./certbot/www:/var/www/certbot
+      - ./certbot/logs:/var/log/letsencrypt
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew --webroot -w /var/www/certbot --quiet; sleep 12h & wait $${!}; done;'"
+  
 networks:
   # Внутренняя сеть - Redis, воркеры, webapp
   vpnbot_internal:
@@ -70,4 +119,6 @@ networks:
 volumes:
   # Персистентность Redis
   redis_data:
+    driver: local
+  pg_data:
     driver: local
