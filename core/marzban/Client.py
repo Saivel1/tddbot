@@ -56,7 +56,7 @@ Password {self.password[:3]}""")
                 headers=self.headers,
                 data=data
             ) as res:
-                logger.debug(f"Ответ от Marzban {res}")
+                
                 logger.debug(f"Статус от Marzban {res.status}")
                 if res.status < 300:
                     res_json = await res.json()
@@ -81,7 +81,7 @@ Password {self.password[:3]}""")
                 url=f"{self.base_url}/api/inbounds",
                 headers=self.headers
             ) as res:
-                logger.debug(f"Ответ от Marzban {res}")
+                
                 logger.debug(f"Статус от Marzban {res.status}")
                 if res.status == 200:
                     res_json = await res.json()
@@ -108,7 +108,7 @@ Password {self.password[:3]}""")
                 url=f'{self.base_url}/api/users',
                 headers=self.headers
             ) as res:
-                logger.debug(f"Ответ от Marzban {res}")
+                
                 logger.debug(f"Статус от Marzban {res.status}")
                 res_json = await res.json()
                 logger.debug(f"Список пользователей: {res_json}")
@@ -127,7 +127,7 @@ Password {self.password[:3]}""")
                 url=f'{self.base_url}/api/user/{username}',
                 headers=self.headers
             ) as res:
-                logger.debug(f"Ответ от Marzban {res}")
+                
                 logger.debug(f"Статус от Marzban {res.status}")
                 if res.status == 200:    
                     return await res.json()
@@ -153,7 +153,7 @@ Password {self.password[:3]}""")
                 headers=self.headers,
                 json=user
             ) as res:
-                logger.debug(f"Ответ от Marzban {res}")
+                
                 logger.debug(f"Статус от Marzban {res.status}")
                 if res.status < 210:
                     return await res.json()
@@ -173,7 +173,7 @@ Password {self.password[:3]}""")
                 url=f'{self.base_url}/api/user/{username}',
                 headers=self.headers
             ) as res:
-                logger.debug(f"Ответ от Marzban {res}")
+                
                 logger.debug(f"Статус от Marzban {res.status}")
                 if res.status == 200:
                     return await res.json()
@@ -197,7 +197,7 @@ Password {self.password[:3]}""")
                 headers=self.headers,
                 json=data
             ) as res:
-                logger.debug(f"Ответ от Marzban {res}")
+                
                 logger.debug(f"Статус от Marzban {res.status}")
                 if res.status == 200:
                     return await res.json()
