@@ -6,7 +6,7 @@ from litestar.params import Dependency
 from litestar.response import Template
 from litestar.template.config import TemplateConfig
 from litestar.contrib.jinja import JinjaTemplateEngine
-
+from litestar.static_files import StaticFilesConfig
 
 
 # Bot / Telegram
@@ -366,12 +366,20 @@ app = Litestar(
         webhook_marz,
         bot_webhook,
         root,
-        yoo_webhook
+        yoo_webhook,
+        vpn_guide
     ],
     debug=True,
     dependencies={
         "redis_cli": Provide(provide_redis),
         "session": Provide(provide_db)
     },
-    lifespan=[lifespan]
+    lifespan=[lifespan],
+    static_files_config=[
+        StaticFilesConfig(
+            path="/static",
+            directories=[BASE_DIR / "templates" / "static"],  # Папка, где лежит favicon.ico
+        )
+    ],
+    template_config=templates
 )
