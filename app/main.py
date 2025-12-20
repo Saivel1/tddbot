@@ -69,27 +69,23 @@ async def lifespan(app: Litestar):
     """Lifecycle"""
     
     # ✅ Инициализируем Redis
-    from app.redis_client import init_redis, close_redis
+    from app.redis_client import get_redis
     
-    redis = await init_redis()
+    redis = await get_redis()
     await redis.ping()  #type: ignore
     print("✅ Redis connected")
 
 
-    # ✅ Создаём долгоживущую сессию для воркеров
-    worker_session = async_session_maker()
+    # # ✅ Создаём долгоживущую сессию для воркеров
+    # worker_session = async_session_maker()
     
     
     yield
 
-
-    await close_redis()
-    print("✅ Redis disconnected")
-
     
-    # Закрываем сессию воркеров
-    await worker_session.close()
-    print("✅ Worker session closed")
+    # # Закрываем сессию воркеров
+    # await worker_session.close()
+    # print("✅ Worker session closed")
 
 
 async def provide_redis() -> Redis: #type: ignore

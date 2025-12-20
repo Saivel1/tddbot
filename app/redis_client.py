@@ -29,3 +29,10 @@ async def close_redis():
     if redis_client:
         await redis_client.aclose()
         redis_client = None  # ← Очищаем после закрытия
+
+
+def get_redis() -> Redis:
+    """Получение текущего Redis клиента (синхронный доступ)"""
+    if redis_client is None:
+        raise RuntimeError("Redis не инициализирован! Вызовите init_redis() сначала")
+    return redis_client

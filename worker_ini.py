@@ -65,13 +65,15 @@ async def start_workers(redis):
     """Запуск всех воркеров"""
     global worker_tasks
     
+    db_session = async_session_maker()
+
     worker_tasks = [
         asyncio.create_task(
-            db_worker(redis_cli=redis, session=async_session_maker), 
+            db_worker(redis_cli=redis, session=db_session), 
             name="db_worker"
         ),
         asyncio.create_task(
-            trial_activation_worker(redis_cli=redis, session=async_session_maker), 
+            trial_activation_worker(redis_cli=redis, session=db_session), 
             name="trial_worker"
         ),
         asyncio.create_task(
