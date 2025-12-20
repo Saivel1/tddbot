@@ -219,3 +219,5 @@ docker-compose.override.yml
 !.gitkeep
 
 init-letsencrypt.sh
+renew-ssl.sh
+mailserver.env

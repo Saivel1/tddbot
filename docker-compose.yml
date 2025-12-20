@@ -1,4 +1,24 @@
 services:
+  mailserver:
+    image: ghcr.io/docker-mailserver/docker-mailserver:latest
+    container_name: mailserver
+    hostname: mail.docs-sharing.world
+    env_file: mailserver.env
+    ports:
+      - "25:25"
+      - "143:143"
+      - "465:465"
+      - "587:587"
+      - "993:993"
+    volumes:
+      - ./mailserver/docker-data/dms/mail-data/:/var/mail/
+      - ./mailserver/docker-data/dms/mail-state/:/var/mail-state/
+      - ./mailserver/docker-data/dms/mail-logs/:/var/log/mail/
+      - ./mailserver/docker-data/dms/config/:/tmp/docker-mailserver/
+      - ./certs/mail:/etc/letsencrypt/live/mail.docs-sharing.world:ro
+    restart: always
+    networks:
+      - vpnbot_internal
   # Redis
   redis:
     image: redis:7-alpine
