@@ -6,12 +6,26 @@ from keyboards.markup import PayMenyMarkup
 from misc.utils import cache_popular_pay_time, is_cached_payment
 from redis.asyncio import Redis
 from core.yoomoney.payment import YooPay
+from core.mails.client import create_user_mailbox
 import json
 
 from bot_in import dp
 from aiogram import F
 
 from logger_setup import logger
+
+async def create_order(amount: int, user_id):
+    mail = await create_user_mailbox(user_id)
+    logger.debug(mail)
+    if not isinstance(mail, str):
+        mail = 'saivel.mezencev1@gmail.com'
+    yoo = YooPay()
+    res = await yoo.create_payment(amount=amount, 
+                                        plan=f"Подписка на {str((amount/50))} мес. {user_id}", 
+                                        email=mail
+    )
+    logger.debug(res)
+    return res
 
 PAY_MENU_TEXT = """
 💳 <b>Оформление подписки</b>
@@ -80,13 +94,12 @@ async def payment_process(
     
     logger.debug(cache_pay)
     if not cache_pay:
-        yoo = YooPay()
         try:
-            data = await yoo.create_payment(
+            data = await create_order(
                 amount=amount,
-                email='saivel.mezencev1@gmail.com', # email из локального сервиса по выдаче имэил
-                plan="anything"
+                user_id=user_id
             )
+
             if data is None:
                 raise ValueError
 

@@ -5,6 +5,7 @@
 # Database / ORM
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, text
+from core.mails.client import create_user_mailbox
 from repositories.base import BaseRepository
 from db.models import User, UserLinks, PaymentData
 from db.database import async_session_maker
@@ -404,6 +405,20 @@ async def worker_exsists(
 
 # --- Payment Creation Worker ---
 
+async def create_order(amount: int, user_id):
+    mail = await create_user_mailbox(user_id)
+    logger.debug(mail)
+    if not isinstance(mail, str):
+        mail = 'saivel.mezencev1@gmail.com'
+    yoo = YooPay()
+    res = await yoo.create_payment(amount=amount, 
+                                        plan=f"Подписка на {str((amount/50))} мес. {user_id}", 
+                                        email=mail
+    )
+    logger.debug(res)
+    return res
+
+
 @queue_worker(
     queue_name="PAYMENT_QUEUE",
     timeout=5,
@@ -412,7 +427,6 @@ async def worker_exsists(
 async def pub_listner(redis_cli: Redis, data: dict):
     """Воркер для обработки создания платежей"""
     
-    yoo_handl = YooPay()
     user_id = data['user_id']
     amount = data['amount']
     pay_str = f"POP_PAY_CHOOSE:{user_id}"
@@ -425,10 +439,9 @@ async def pub_listner(redis_cli: Redis, data: dict):
     
     # Создаём платёж
     logger.info(f"💳 Creating payment: user_id={user_id}, amount={amount}₽")
-    res = await yoo_handl.create_payment(
+    res = await create_order(
         amount=amount,
-        email="saivel.mezencev1@gmail.com",
-        plan="1+9210"
+        user_id=user_id
     )
     
     if res is None:
