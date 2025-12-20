@@ -9,6 +9,8 @@ from misc.utils import worker_exsists, is_cached
 from bot_in import dp
 from aiogram import F
 
+from keyboards.deps import BackButton
+
 
 # Уведомление о начале работы пробного периода (о том, что он активирован) должно быть answer
 @dp.callback_query(F.data == 'trial')
@@ -28,7 +30,8 @@ async def trial_handler(
     if cache:
         if cache.trial_used:
             await callback.message.edit_text( #type: ignore
-                text="Пробный период уже активирован."
+                text="Пробный период уже активирован.",
+                reply_markup=BackButton.back_start()
             )
             return "Уже активируем"
 
@@ -39,7 +42,8 @@ async def trial_handler(
 
     if await worker_exsists(redis_cli=redis_cache, worker="TRIAL_ACTIVATION", data=data): #sorted при преобразование по этому тип данных словарь
         await callback.message.edit_text( #type:ignore
-            text="Пробный период в процессе активации. Ожидайте."
+            text="Пробный период в процессе активации. Ожидайте.",
+            reply_markup=BackButton.back_start()
         )
         return "Ожидайте"
     
@@ -53,6 +57,7 @@ async def trial_handler(
         ) #type: ignore
 
         await callback.message.edit_text( #type:ignore
-            text="Активируем пробный период!"
+            text="Активируем пробный период!",
+            reply_markup=BackButton.back_start()
         )
         return "Создали задачу"

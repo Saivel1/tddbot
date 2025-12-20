@@ -48,6 +48,7 @@ class UserLinks(Base):
 
     user: Mapped['User'] = relationship(back_populates='links')
 
+
 class PaymentData(Base):
     __tablename__ = 'payment_data'
     

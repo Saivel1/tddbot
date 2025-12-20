@@ -23,7 +23,7 @@ async def menu(callback: CallbackQuery, session: AsyncSession, redis_cache: Redi
     )
 
     if user is None:
-        await callback.answer(
+        await callback.message.edit_text( #type: ignore
             text="Нажмите /start для продолжения работы"
         )
         return
@@ -40,6 +40,6 @@ async def menu(callback: CallbackQuery, session: AsyncSession, redis_cache: Redi
     )
 
     await callback.message.edit_text( #type: ignore 
-        text="Инструкции",
+        text="🪞 Нажмите на кнопку ниже для просмотра инструкции:",
         reply_markup=Instruction.web_app_keyboard(uuid) # uuid
     )

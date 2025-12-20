@@ -17,6 +17,32 @@ from core.marzban.Client import MarzbanClient
 from config import settings as s
 from handlers.deps import get_uuid_cache
 
+text_pattern = """
+🔐 **Ваши подписки IV VPN**
+
+📋 Универсальная ссылка подписки:
+(Нажмите для копирования)
+"""
+
+def _parse_links(user_json: str) -> UserLinksModel | None:
+    """
+    Парсит JSON строку в UserModel
+    
+    Args:
+        user_json: JSON строка с данными пользователя
+    
+    Returns:
+        UserLinksModel или None при ошибке парсинга
+    """
+    logger.debug(user_json)
+    try:
+        user_dict = json.loads(user_json)
+        logger.debug(f"Parsing user data: {user_dict}")
+        return UserLinksModel(**user_dict)
+    except Exception as e:
+        logger.error(f"JSON parse error: {e}")
+        return None
+
 
 async def get_links_cache(
     redis_cache: Redis,
@@ -79,12 +105,16 @@ async def sub_n_links(
     if links is None or uuid_cache is None:
         await callback.answer()
         return
+    
+    text_reponse = text_pattern
+    text_reponse += "\n" + f"`{s.IN_SUB_LINK}{uuid_cache}`" #type: ignore
 
     link_titles = await to_link({"links": links.links})
         
     await callback.message.edit_text( #type:ignore
-        text=f'Something like link {s.IN_SUB_LINK}{uuid_cache}',
-        reply_markup=SubMenu.links_keyboard(links=link_titles) #type: ignore
+        text=text_reponse,
+        reply_markup=SubMenu.links_keyboard(links=link_titles), #type: ignore
+        parse_mode="MARKDOWN"
     )
     
     
@@ -121,35 +151,21 @@ async def links(
     link_titles = await to_link({"links": links.links})
     if link_titles is None:
         return "Error"
+    
+    text_response = f"""🔐 <b>Ваши подписки IV VPN</b>
 
-    text = f"""
-Something like link {s.IN_SUB_LINK}{uuid_cache}
+📋 <b>Универсальная ссылка:</b>
+<code>{s.IN_SUB_LINK}{uuid_cache}</code>
 
-```{links.links[int(index)]}```
+🔑 <b>Ключ конфигурации:</b>
+<code>{links.links[int(index)]}</code>
+
+💡 <i>Используйте универсальную ссылку для автоматического обновления серверов, или ключ для ручной настройки.</i>
 """
+
     
     await callback.message.edit_text( #type: ignore
-        text=text,
+        text=text_response,
         reply_markup=SubMenu.links_keyboard(links=link_titles),
-        parse_mode="MARKDOWN"
+        parse_mode="HTML"
     )
-
-
-def _parse_links(user_json: str) -> UserLinksModel | None:
-    """
-    Парсит JSON строку в UserModel
-    
-    Args:
-        user_json: JSON строка с данными пользователя
-    
-    Returns:
-        UserLinksModel или None при ошибке парсинга
-    """
-    logger.debug(user_json)
-    try:
-        user_dict = json.loads(user_json)
-        logger.debug(f"Parsing user data: {user_dict}")
-        return UserLinksModel(**user_dict)
-    except Exception as e:
-        logger.error(f"JSON parse error: {e}")
-        return None

@@ -466,6 +466,7 @@ async def trial_activation_worker(
     data: dict
 ):
     """Воркер для активации пробного периода"""
+    from keyboards.deps import BackButton
     
     repo = BaseRepository(session=session, model=User)
     user = await repo.get_one(user_id=int(data["user_id"]))
@@ -540,7 +541,8 @@ async def trial_activation_worker(
     # Уведомление пользователя
     await bot.send_message(
         chat_id=int(user_id),
-        text="Пробный период активирован"
+        text="Пробный период активирован ✅",
+        reply_markup=BackButton.back_start()
     )
 
 
@@ -811,6 +813,7 @@ async def payment_wrk(
     data: dict
 ):
     """Воркер для обработки успешных платежей"""
+    from keyboards.deps import BackButton
     
     logger.info(f"💰 Processing payment: user_id={data.get('user_id')}, amount={data.get('amount')}₽")
     
@@ -893,7 +896,8 @@ async def payment_wrk(
     # Уведомления
     await bot.send_message(
         chat_id=int(data['user_id']),
-        text=f"Оплата прошла успешно на сумму {data['amount']}"
+        text=f"Оплата прошла успешно на сумму {data['amount']}",
+        reply_markup=BackButton.back_start()
     )
 
     await bot.send_message(
@@ -927,9 +931,7 @@ async def nightly_cache_refresh_worker(
         logger.info("🌙 Starting nightly cache refresh...")
         
         try:
-            async with session_maker() as session:
-                repo = BaseRepository(session=session, model=User)
-                
+            async with session_maker() as session:                
                 offset = 0
                 batch_size = 100
                 total_refreshed = 0

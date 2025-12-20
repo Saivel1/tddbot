@@ -13,6 +13,31 @@ from aiogram import F
 
 from logger_setup import logger
 
+PAY_MENU_TEXT = """
+💳 <b>Оформление подписки</b>
+
+🪞 <b>IV VPN</b> — ваш безопасный доступ к свободному интернету.
+
+<b>Что входит в подписку:</b>
+✓ Безлимитный трафик
+✓ Высокая скорость
+✓ Все серверы доступны
+✓ Поддержка 24/7
+✓ Полная конфиденциальность
+
+Выберите тариф:
+"""
+
+
+ERROR_TEXT = """
+🚧 <b>Упс! Что-то пошло не так</b>
+
+Мы уже работаем над решением проблемы.
+Попробуйте обновить через пару минут 🔄
+
+Нужна помощь? → /help
+"""
+
 
 async def keyboard_build(order_url: str):
     to_pay = [InlineKeyboardButton(
@@ -34,8 +59,9 @@ async def choose_sum(
     await cache_popular_pay_time(user_id=user_id, redis_cache=redis_cache)
 
     await callback.message.edit_text( # type:ignore
-        text="Тест",
-        reply_markup=PayMenu.main_keyboard()
+        text=PAY_MENU_TEXT,
+        reply_markup=PayMenu.main_keyboard(),
+        parse_mode="HTML"
     )
 
 from misc.bot_setup import prices
@@ -62,10 +88,7 @@ async def payment_process(
                 plan="anything"
             )
             if data is None:
-                await callback.message.edit_text( #type:ignore
-                    text="Возникла ошибка"
-                )
-                return
+                raise ValueError
 
             order_url = data[0]
             pay_reg = f"PAY:{user_id}:{amount}"
@@ -85,17 +108,25 @@ async def payment_process(
             await redis_cache.set(web_wrk_label, json.dumps(data_for_webhook), ex=700)
 
 
-        except Exception as e:
+        except:
             await callback.message.edit_text( #type:ignore
-                text="Возникла ошибка"
-            )
+                    text=ERROR_TEXT,
+                    parse_mode="HTML"
+                )
             return
     else:
         order_url = cache_pay.payment_url
     
     keyboard = await keyboard_build(order_url=order_url)
 
+    reply_text = f"""
+Ссылка для оплаты:
+
+{order_url}
+"""
+
     await callback.message.edit_text( # type:ignore
-        text=f"Сумма для оплаты {amount}",
-        reply_markup=keyboard
+        text=reply_text,
+        reply_markup=keyboard,
+        parse_mode="HTML"
     )

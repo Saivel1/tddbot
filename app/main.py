@@ -63,6 +63,7 @@ import handlers.instructions
 import handlers.payment
 import handlers.trial
 import handlers.sub_n_links
+import handlers.others
 
 
 @asynccontextmanager
@@ -132,6 +133,7 @@ async def provide_redis() -> Redis: #type: ignore
         yield redis #type: ignore
     finally:
         await redis.aclose()
+
 
 async def provide_db() -> AsyncGenerator[AsyncSession, None]:
     """Dependency для DB session"""
