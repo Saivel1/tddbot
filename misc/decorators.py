@@ -56,7 +56,7 @@ def queue_worker(
                         logger.debug(f"⏳ {worker_name}: service unavailable, waiting 10s...")
                         await asyncio.sleep(10)
                         cnt += 1
-                        if cnt == 60:
+                        if cnt == 6:
                             logger.error(f"🚨 {worker_name}: unavailable for 10 minutes!")
                             await notifyer_of_down_wrk(service=worker_name)
                             cnt = 0
