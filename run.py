@@ -30,7 +30,6 @@ async def setup_webhook():
 
 
 if __name__ == "__main__":
-    try:
         asyncio.run(setup_webhook())
         Granian(
             target="app.main:app",
@@ -40,7 +39,5 @@ if __name__ == "__main__":
             loop=Loops.asyncio,
             log_enabled=True,
             interface=Interfaces.ASGI,
-            reload=True
         ).serve()
-    except Exception as e:
-        print(e)
+
