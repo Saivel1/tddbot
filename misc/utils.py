@@ -150,9 +150,13 @@ def _parse_user(user_json: str) -> UserModel | None:
 
 async def check_marzban_available() -> bool:
     """Проверка доступности Marzban"""
+    logger.info("Enter checker marzban")
     try:
+        logger.info("Enter try marzban")
         async with aiohttp.ClientSession() as client:
+            logger.info("Enter client marzban")
             async with client.request("GET", settings.M_DIGITAL_URL) as res:
+                logger.info(f"Enter P{res.status} marzban")
                 return res.status < 500
     except:
         return False
@@ -160,11 +164,15 @@ async def check_marzban_available() -> bool:
 
 async def check_db_available() -> bool:
     """Проверяет доступность PostgreSQL"""
+    logger.info("Enter schecker db")
     async with async_session_maker() as session:
+        logger.info("Enter wtih section db")
         try:
+            logger.info("Enter try section db")
             await session.execute(text("SELECT 1"))
             return True
-        except Exception:
+        except Exception as e:
+            logger.info(f"Enter try section db {e}")
             return False
 
 
