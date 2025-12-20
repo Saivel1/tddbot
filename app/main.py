@@ -64,64 +64,64 @@ import handlers.payment
 import handlers.trial
 import handlers.sub_n_links
 
-@asynccontextmanager
-async def lifespan(app: Litestar):
-    """Lifecycle"""
+# @asynccontextmanager
+# async def lifespan(app: Litestar):
+#     """Lifecycle"""
     
-    # ✅ Инициализируем Redis
-    from app.redis_client import init_redis, close_redis
+#     # ✅ Инициализируем Redis
+#     from app.redis_client import init_redis, close_redis
     
-    redis = await init_redis()
-    await redis.ping()  #type: ignore
-    print("✅ Redis connected")
+#     redis = await init_redis()
+#     await redis.ping()  #type: ignore
+#     print("✅ Redis connected")
     
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    print("✅ Database tables created")
+#     async with engine.begin() as conn:
+#         await conn.run_sync(Base.metadata.create_all)
+#     print("✅ Database tables created")
 
-    # Webhook setup
-    await bot.delete_webhook()
-    webhook_url = f"{s.WEBHOOK_URL}"
-    await bot.set_webhook(url=webhook_url, drop_pending_updates=True)
-    print(f"✅ Webhook установлен: {webhook_url}")
+#     # Webhook setup
+#     await bot.delete_webhook()
+#     webhook_url = f"{s.WEBHOOK_URL}"
+#     await bot.set_webhook(url=webhook_url, drop_pending_updates=True)
+#     print(f"✅ Webhook установлен: {webhook_url}")
 
-    # ✅ Создаём долгоживущую сессию для воркеров
-    worker_session = async_session_maker()
+#     # ✅ Создаём долгоживущую сессию для воркеров
+#     worker_session = async_session_maker()
     
-    # ✅ СОХРАНЯЕМ ссылки на задачи
-    worker_tasks = [
-        asyncio.create_task(db_worker(redis_cli=redis, session=worker_session), name="db_worker"), # type: ignore
-        asyncio.create_task(trial_activation_worker(redis_cli=redis, session=worker_session), name="trial_worker"),
-        asyncio.create_task(nightly_cache_refresh_worker(redis_cache=redis, session_maker=async_session_maker), name="cache_worker"),
-        asyncio.create_task(marzban_worker(redis_cli=redis), name="marzban_worker"),
-        asyncio.create_task(pub_listner(redis_cli=redis), name="pub_listner"),
-        asyncio.create_task(payment_wrk(redis_cli=redis), name="payment_wrk"),
-    ]
-    print(f"✅ Workers started: {len(worker_tasks)}")
+#     # ✅ СОХРАНЯЕМ ссылки на задачи
+#     worker_tasks = [
+#         asyncio.create_task(db_worker(redis_cli=redis, session=worker_session), name="db_worker"), # type: ignore
+#         asyncio.create_task(trial_activation_worker(redis_cli=redis, session=worker_session), name="trial_worker"),
+#         asyncio.create_task(nightly_cache_refresh_worker(redis_cache=redis, session_maker=async_session_maker), name="cache_worker"),
+#         asyncio.create_task(marzban_worker(redis_cli=redis), name="marzban_worker"),
+#         asyncio.create_task(pub_listner(redis_cli=redis), name="pub_listner"),
+#         asyncio.create_task(payment_wrk(redis_cli=redis), name="payment_wrk"),
+#     ]
+#     print(f"✅ Workers started: {len(worker_tasks)}")
     
     
-    yield
+#     yield
 
-    await redis.flushall()
+#     await redis.flushall()
 
-    await close_redis()
-    print("✅ Redis disconnected")
+#     await close_redis()
+#     print("✅ Redis disconnected")
     
-    for wrk in worker_tasks:
-        wrk.cancel()
-        print("✅ Worker stopped")
+#     for wrk in worker_tasks:
+#         wrk.cancel()
+#         print("✅ Worker stopped")
 
     
-    # Закрываем сессию воркеров
-    await worker_session.close()
-    print("✅ Worker session closed")
+#     # Закрываем сессию воркеров
+#     await worker_session.close()
+#     print("✅ Worker session closed")
 
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
-    print("✅ Database tables dropped")
+#     async with engine.begin() as conn:
+#         await conn.run_sync(Base.metadata.drop_all)
+#     print("✅ Database tables dropped")
     
-    await bot.delete_webhook()
-    await bot.session.close()
+#     await bot.delete_webhook()
+#     await bot.session.close()
 
 
 async def provide_redis() -> Redis: #type: ignore
@@ -443,7 +443,7 @@ app = Litestar(
         "redis_cli": Provide(provide_redis),
         "session": Provide(provide_db)
     },
-    lifespan=[lifespan],
+    # lifespan=[lifespan],
     static_files_config=[
         StaticFilesConfig(
             path="/static",
