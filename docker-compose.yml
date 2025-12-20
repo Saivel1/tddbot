@@ -6,7 +6,7 @@ services:
     restart: unless-stopped
     command: >
       redis-server
-      --requirepass ${REDIS_PASSWORD}
+      --requirepass ${REDIS_PASS}
       --appendonly yes
       --appendfsync everysec
       --save 900 1
