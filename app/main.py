@@ -3,6 +3,11 @@ from litestar import Litestar, Response, get, post, Request
 from litestar.exceptions import HTTPException
 from litestar.di import Provide
 from litestar.params import Dependency
+from litestar.response import Template
+from litestar.template.config import TemplateConfig
+from litestar.contrib.jinja import JinjaTemplateEngine
+
+
 
 # Bot / Telegram
 from aiogram import Bot, Dispatcher
@@ -17,8 +22,9 @@ from logger_setup import logger
 # Database / ORM
 from sqlalchemy.ext.asyncio import AsyncSession
 from db.database import async_session_maker, engine
-from db.models import Base
+from db.models import Base, UserLinks
 from midllewares.db import DatabaseMiddleware
+from repositories.base import BaseRepository
 
 # Redis / cache
 from redis.asyncio import Redis
@@ -43,6 +49,7 @@ import json
 import asyncio
 from contextlib import asynccontextmanager
 from typing import Annotated, AsyncGenerator, Optional
+from pathlib import Path
 
 
 
@@ -133,10 +140,38 @@ async def provide_db() -> AsyncGenerator[AsyncSession, None]:
 dp.message.middleware(DatabaseMiddleware(session_maker=async_session_maker))
 dp.callback_query.middleware(DatabaseMiddleware(session_maker=async_session_maker))
 
+BASE_DIR = Path(__file__).parent
+
+templates = TemplateConfig(
+    directory=BASE_DIR / Path("templates"),
+    engine=JinjaTemplateEngine,
+)
+
 
 @get("/")
 async def root() -> dict:
     return {"status": "running"}
+
+
+# Route handler
+@get("/vpn-guide/{user_id:str}")
+async def vpn_guide(
+    user_id: str
+) -> Template:
+    # user_data = {
+    #     "subscription_link": f"{s.IN_SUB_LINK}{user_id}",
+    #     "user_id": user_id
+    # }
+    user_data = f"{s.IN_SUB_LINK}{user_id}"
+    logger.debug(f"UUID: {user_id}| Перешёл по ссылке гайда")
+
+    return Template(
+        template_name="guide.html",
+        context={
+            "subscription_url": user_data,
+            "title": "VPN Setup Guide"
+        }
+    )
 
 
 @post("/bot-webhook", status_code=200)
