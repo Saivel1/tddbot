@@ -45,6 +45,8 @@ class Settings(BaseSettings):
 
     ADMIN_ID: int
 
+    DOMAIN: str
+
     @property
     def DATABASE_URL(self) -> str:
         """Асинхронный URL для asyncpg"""
