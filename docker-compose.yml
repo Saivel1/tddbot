@@ -58,20 +58,26 @@ services:
           memory: 2G
   postgres:
     image: postgres:16
-    container_name: my_postgres
+    container_name: vpnbot-postgres
     restart: always
     environment:
       POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
       POSTGRES_DB: ${DB_NAME}
-    ports:
-      - "5432:5432"
     networks:
       - vpnbot_internal
     volumes:
       - pg_data:/var/lib/postgresql/data
-      - ./config/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
-    command: ["postgres", "-c", "hba_file=/etc/postgresql/pg_hba.conf"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
 
   nginx:
     image: nginx:alpine
