@@ -52,24 +52,28 @@ async def create_user_mailbox(user_id: int):
     """Создать почтовый ящик для пользователя"""
     email = f"user{user_id}@ivvpn.world"
     
-    # Проверяем что не существует
-    async with aiohttp.ClientSession() as session:
-        async with session.get(f"http://localhost:8001/api/mailbox/check/{email}") as response:
-            data = await response.json()
+    try:
+        # Проверяем что не существует
+        async with aiohttp.ClientSession() as session:
+            async with session.get(f"http://localhost:8001/api/mailbox/check/{email}") as response:
+                data = await response.json()
+                
+                if data["exists"]:
+                    print(f"Ящик {email} уже существует")
+                    return email
             
-            if data["exists"]:
-                print(f"Ящик {email} уже существует")
-                return email
-        
-        # Создаём новый
-        password = generate_random_password()
-        
-        async with session.post(
-            "http://localhost:8001/api/mailbox/create",
-            json={"email": email, "password": password}
-        ) as response:
-            if response.status == 200:
-                logger.info(f'Содан email: {email} password: {password}')
-                return email
-            else:
-                return None
+            # Создаём новый
+            password = generate_random_password()
+            
+            async with session.post(
+                "http://localhost:8001/api/mailbox/create",
+                json={"email": email, "password": password}
+            ) as response:
+                if response.status == 200:
+                    logger.info(f'Содан email: {email} password: {password}')
+                    return email
+                else:
+                    return None
+    except Exception as e:
+        logger.error(e)
+        return None
