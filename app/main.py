@@ -1,12 +1,15 @@
 # Framework / web
+import aiohttp
 from litestar import Litestar, Response, get, post, Request
 from litestar.exceptions import HTTPException
 from litestar.di import Provide
 from litestar.params import Dependency
-from litestar.response import Template
+from litestar.response import Template, Redirect
 from litestar.template.config import TemplateConfig
 from litestar.contrib.jinja import JinjaTemplateEngine
 from litestar.static_files import StaticFilesConfig
+from litestar.exceptions import NotFoundException, ServiceUnavailableException
+
 
 
 # Bot / Telegram
@@ -41,7 +44,8 @@ from misc.utils import (
     pub_listner,
     is_cached_payment,
     worker_exsists,
-    payment_wrk
+    payment_wrk,
+    get_links_of_panels
 )
 
 # Stdlib
@@ -158,10 +162,6 @@ async def root() -> dict:
 async def vpn_guide(
     user_id: str
 ) -> Template:
-    # user_data = {
-    #     "subscription_link": f"{s.IN_SUB_LINK}{user_id}",
-    #     "user_id": user_id
-    # }
     user_data = f"{s.IN_SUB_LINK}{user_id}"
     logger.debug(f"UUID: {user_id}| Перешёл по ссылке гайда")
 
@@ -360,6 +360,74 @@ async def yoo_webhook(
 
     return {"status": "ok"}
 
+# Subscription redirect
+@get("/sub/{uuid:str}")
+async def process_sub(uuid: str) -> Redirect:
+    """Проверяем все панели параллельно"""
+    
+    links = await get_links_of_panels(uuid=uuid)
+    logger.debug(f'Ссылки {links}')
+    
+    if not links:
+        raise NotFoundException(detail="Subscription not found")
+    
+    async def check_panel(link: str, max_attempts: int = 15, delay: int = 1) -> tuple[bool, str]:
+        """Проверить доступность панели с retry"""
+        timeout = aiohttp.ClientTimeout(total=3.0)
+        connector = aiohttp.TCPConnector(ssl=False)
+        
+        for attempt in range(max_attempts):
+            try:
+                async with aiohttp.ClientSession(
+                    timeout=timeout,
+                    connector=connector
+                ) as session:
+                    response = await session.get(url=link)
+                    
+                    # Успех
+                    if response.status in (200, 201):
+                        return (True, link)
+                    
+                    # Серверные ошибки - retry
+                    elif 500 <= response.status < 600 and attempt < max_attempts - 1:
+                        logger.warning(f"Panel {link} retry {attempt + 1}/{max_attempts}: статус {response.status}")
+                        if attempt % 5 == 0:
+                            await asyncio.sleep(delay * 20 * (attempt + 1))
+                        await asyncio.sleep(delay * (attempt + 1))
+                        continue
+                    
+                    # Клиентские ошибки - сразу False
+                    else:
+                        return (False, link)
+            
+            except (aiohttp.ClientError, asyncio.TimeoutError) as e:
+                if attempt < max_attempts - 1:
+                    logger.warning(f"Panel {link} retry {attempt + 1}/{max_attempts}: {e}")
+                    if attempt % 5 == 0:
+                        await asyncio.sleep(delay * 20 * (attempt + 1))
+                    await asyncio.sleep(delay * (attempt + 1))
+                else:
+                    logger.debug(f"Panel {link} недоступна после {max_attempts} попыток")
+                    return (False, link)
+            
+            except Exception as e:
+                logger.error(f"Неожиданная ошибка при проверке {link}: {e}")
+                return (False, link)
+        
+        return (False, link)
+    
+    # Проверяем все панели параллельно
+    results = await asyncio.gather(*[check_panel(link) for link in links])
+    
+    # Выбираем первую рабочую
+    for is_available, link in results:
+        if is_available:
+            logger.debug(f"Подписка отдана: {link}")
+            return Redirect(path=link)
+    logger.warning("Панели недоступны")
+    # Все недоступны
+    raise ServiceUnavailableException(detail="All panels unavailable")
+
 
 app = Litestar(
     route_handlers=[
@@ -367,7 +435,8 @@ app = Litestar(
         bot_webhook,
         root,
         yoo_webhook,
-        vpn_guide
+        vpn_guide,
+        process_sub
     ],
     debug=True,
     dependencies={

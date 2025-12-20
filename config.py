@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     SECRET_KEY: str
 
     IN_SUB_LINK: str 
+    IN_GUIDE_LINK: str
 
     DB_HOST: str
     DB_PORT: int

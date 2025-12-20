@@ -966,3 +966,20 @@ async def nightly_cache_refresh_worker(
                 
         except Exception as e:
             logger.error(f"❌ Nightly refresh error: {e}")
+
+
+async def get_links_of_panels(uuid: str) -> list | None:
+    '''
+    Эта функция принимает на вход uuid строку. 
+    И возвращает списоков подписок для обеих панелей, 
+    которые есть в таблице links для этого uuid.
+    '''
+    async with async_session_maker() as session:
+        user_repo = BaseRepository(session=session, model=UserLinks)
+        res = await user_repo.get_one(uuid=uuid)
+        logger.debug(res)
+
+        if res is None:
+            return None
+        
+        return [res.panel1, res.panel2]

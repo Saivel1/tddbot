@@ -28,7 +28,7 @@ class Instruction:
         return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(
             text="📱 Инструкция по установке",
-            web_app=WebAppInfo(url=f"{settings.IN_SUB_LINK}{uuid}")
+            web_app=WebAppInfo(url=f"{settings.IN_GUIDE_LINK}{uuid}")
         )],
         [InlineKeyboardButton(text="⬅️ Назад", callback_data="start_menu")]
     ])
