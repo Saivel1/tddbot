@@ -10,6 +10,8 @@ from db.models import UserLinks
 from aiogram import F
 from bot_in import dp
 
+from handlers.deps import get_uuid_cache
+
 
 @dp.callback_query(F.data == 'instruction')
 async def menu(callback: CallbackQuery, session: AsyncSession, redis_cache: Redis):
@@ -31,8 +33,13 @@ async def menu(callback: CallbackQuery, session: AsyncSession, redis_cache: Redi
             text="У вас нет подписки"
         )
         return
+    
+    uuid = await get_uuid_cache(
+        redis_cache=redis_cache,
+        user_id=user_id
+    )
 
     await callback.message.edit_text( #type: ignore 
         text="Инструкции",
-        reply_markup=Instruction.web_app_keyboard("1234") # uuid
+        reply_markup=Instruction.web_app_keyboard(uuid) # uuid
     )
