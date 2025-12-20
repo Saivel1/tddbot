@@ -1,0 +1,74 @@
+services:
+  # Redis - внутренняя сеть с персистентностью
+  redis:
+    image: redis:7-alpine
+    container_name: vpnbot-redis
+    restart: unless-stopped
+    command: >
+      redis-server
+      --appendonly yes
+      --appendfsync everysec
+      --save 900 1
+      --save 300 10
+      --save 60 10000
+    volumes:
+      - redis_data:/data
+    networks:
+      - vpnbot_internal
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+  # ASGI приложение - обработка webhook
+  webapp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: vpnbot-webapp
+    restart: unless-stopped
+    command: uv run run.py
+    env_file:
+      - .env
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
+    ports:
+      - "8000:8000"  # Открываем наружу для Caddy/Nginx
+    depends_on:
+      redis:
+        condition: service_healthy
+      workers:
+        condition: service_started
+    networks:
+      - vpnbot_internal
+      - vpnbot_external
+    volumes:
+      - ./logs:/app/logs  # Логи webapp
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+
+networks:
+  # Внутренняя сеть - Redis, воркеры, webapp
+  vpnbot_internal:
+    driver: bridge
+    internal: false  # Если нужен доступ в интернет для API запросов
+  
+  # Внешняя сеть - webapp для входящих webhook
+  vpnbot_external:
+    driver: bridge
+
+volumes:
+  # Персистентность Redis
+  redis_data:
+    driver: local
