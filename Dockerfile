@@ -1,4 +1,4 @@
-FROM python:3.13-slim
+FROM ghcr.io/astral-sh/uv:python3.13-bookworm-slim
 
 # Переменные окружения
 ENV PYTHONUNBUFFERED=1 \
@@ -14,10 +14,6 @@ RUN apt-get update && apt-get install -y \
     gcc \
     && rm -rf /var/lib/apt/lists/*
 
-# Устанавливаем uv
-RUN curl -LsSf https://astral.sh/uv/install.sh | sh && \
-    mv /root/.cargo/bin/uv /usr/local/bin/uv && \
-    uv --version
 
 # Создаём рабочую директорию
 WORKDIR /app
