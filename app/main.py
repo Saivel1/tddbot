@@ -371,7 +371,7 @@ async def process_sub(uuid: str) -> Redirect:
     if not links:
         raise NotFoundException(detail="Subscription not found")
     
-    async def check_panel(link: str, max_attempts: int = 15, delay: int = 1) -> tuple[bool, str]:
+    async def check_panel(link: str, max_attempts: int = 1, delay: int = 1) -> tuple[bool, str]:
         """Проверить доступность панели с retry"""
         timeout = aiohttp.ClientTimeout(total=3.0)
         connector = aiohttp.TCPConnector(ssl=False)
