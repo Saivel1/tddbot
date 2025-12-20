@@ -1,12 +1,219 @@
-# Python-generated files
+# ===== Python =====
 __pycache__/
-*.py[oc]
-build/
-dist/
-wheels/
-*.egg-info
+*.py[cod]
+*$py.class
+*.so
+.Python
 
 # Virtual environments
-.venv
+env/
+venv/
+.venv/
+ENV/
+env.bak/
+venv.bak/
 
+# uv
+.venv/
+uv.lock
+
+# Testing
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+.hypothesis/
+
+# Distribution / packaging
+*.egg
+*.egg-info/
+dist/
+build/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+
+# ===== Logs =====
+*.log
+logs/
+*.log.*
+log/
+
+# ===== Environment & Secrets =====
 .env
+.env.*
+.env.local
+.env.*.local
+!.env.example
+*.pem
+*.key
+*.crt
+*.cer
+*.p12
+*.pfx
+
+# ===== Database =====
+*.db
+*.sqlite
+*.sqlite3
+db.sqlite3
+*.sql
+*.dump
+
+# ===== Docker & Nginx =====
+# Nginx конфиги (сгенерированные)
+nginx/conf.d/*.conf
+!nginx/conf.d/.gitkeep
+
+# Certbot сертификаты
+certbot/conf/
+certbot/www/
+certbot/logs/
+
+# Nginx логи
+nginx/logs/
+logs/nginx/
+
+# Docker volumes data
+pg_data/
+redis_data/
+
+# ===== IDE & Editors =====
+# VSCode
+.vscode/
+*.code-workspace
+
+# PyCharm
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# Vim
+*.swp
+*.swo
+*~
+.*.sw[a-z]
+*.un~
+Session.vim
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Emacs
+*~
+\#*\#
+.\#*
+
+# ===== OS =====
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+*~
+.directory
+.Trash-*
+
+# ===== Temporary files =====
+tmp/
+temp/
+*.tmp
+*.bak
+*.swp
+*.cache
+
+# ===== Project specific =====
+# Uploaded files (если есть)
+uploads/
+media/
+static/collected/
+
+# Backups
+backup/
+backups/
+*.backup
+*.old
+
+# Redis dumps
+dump.rdb
+appendonly.aof
+
+# PostgreSQL
+*.backup
+pg_hba.conf.bak
+
+# Compiled translations
+*.mo
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# pyenv
+.python-version
+
+# pipenv
+Pipfile.lock
+
+# poetry
+poetry.lock
+
+# Celery
+celerybeat-schedule
+celerybeat.pid
+
+# SageMath
+*.sage.py
+
+# Spyder
+.spyderproject
+.spyproject
+
+# Rope
+.ropeproject
+
+# mkdocs
+/site
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre
+.pyre/
+
+# pytype
+.pytype/
+
+# Cython
+cython_debug/
+
+# ===== Docker specific =====
+docker-compose.override.yml
+.dockerignore.bak
+
+# ===== Keep empty directories =====
+!.gitkeep
