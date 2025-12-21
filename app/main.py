@@ -114,13 +114,13 @@ async def lifespan(app: Litestar):
     
     # Закрываем сессию воркеров
     await worker_session.close()
-    print("✅ Worker session closed")
-    try:
-        async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.drop_all)
-    except: 
-        pass
-    print("✅ Database tables dropped")
+    # print("✅ Worker session closed")
+    # try:
+    #     async with engine.begin() as conn:
+    #         await conn.run_sync(Base.metadata.drop_all)
+    # except: 
+    #     pass
+    # print("✅ Database tables dropped")
     
     await bot.delete_webhook()
     await bot.session.close()

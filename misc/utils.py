@@ -726,7 +726,7 @@ async def db_worker(
     model = MODEL_REGISTRY.get(data['model'])
     if not model:
         logger.error(f"❌ Unknown model: {data['model']}")
-        raise ValueError(f"Unknown model: {data['model']}")
+        raise SkipTask(f"Unknown model: {data['model']}")
     
     repo = BaseRepository(session=session, model=model)
     data_type: str = data['type'].lower()
@@ -742,7 +742,7 @@ async def db_worker(
         
         if not user_id:
             logger.error(f"❌ Missing user_id for {model.__name__}")
-            raise ValueError(f"{model.__name__} requires 'user_id' field")
+            raise SkipTask(f"{model.__name__} requires 'user_id' field")
         
         user_id = int(user_id)
         logger.debug(f"🔍 Checking: user_id={user_id}")
@@ -750,7 +750,7 @@ async def db_worker(
         existing = await repo.get_one(user_id=user_id)
         
         if existing is not None:
-            logger.debug(f"📌 Record exists: user_id={user_id}")
+            logger.debug(f"📌 Record exists: user_id={user_id}. model - {model} ")
             
             current_data = {
                 k: v for k, v in existing.as_dict().items() 
@@ -799,8 +799,9 @@ async def db_worker(
                 if 'filter' in data and 'user_id' in data['filter']:
                     db_data['user_id'] = user_id
                 
-                if model == UserLinks:
+                if model == UserLinks and ('uuid' not in db_data or not db_data.get('uuid')):
                     db_data['uuid'] = str(uuid.uuid4())
+                    logger.debug(f"🆔 Generated uuid: {db_data['uuid']}")
 
                 data.pop('filter', None)
     
