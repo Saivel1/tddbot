@@ -77,12 +77,12 @@ async def lifespan(app: Litestar):
     await redis.ping()  #type: ignore
     print("✅ Redis connected")
     
-    try:
-        async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
-    except:
-        pass
-    print("✅ Database tables created")
+    # try:
+    #     async with engine.begin() as conn:
+    #         await conn.run_sync(Base.metadata.create_all)
+    # except:
+    #     pass
+    # print("✅ Database tables created")
 
 
     # ✅ Создаём долгоживущую сессию для воркеров
