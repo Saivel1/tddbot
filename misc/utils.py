@@ -712,147 +712,312 @@ async def db_worker(
     data: dict,
     process_once: bool = False
 ):
-    """
-    Воркер для обработки операций с БД из очереди
-    
-    Типы операций: Create, Update
-    Автоматическая конвертация операций при необходимости
-    """
-    
-    logger.info(f"📥 DB task: model={data.get('model')}, type={data.get('type')}")
-    
-    data = deserialize_data(data)
-    
-    model = MODEL_REGISTRY.get(data['model'])
-    if not model:
-        logger.error(f"❌ Unknown model: {data['model']}")
-        raise SkipTask(f"Unknown model: {data['model']}")
-    
-    repo = BaseRepository(session=session, model=model)
-    data_type: str = data['type'].lower()
-    
-    db_data = {
-        k: v for k, v in data.items() 
-        if k not in ("model", "type", "filter")
-    }
-    
-    # Проверка существования для моделей с user_id
-    if model in UNIQUE_USER_ID_MODELS:
-        user_id = data.get('user_id') or data.get('filter', {}).get('user_id')
+        """
+        Воркер для обработки операций с БД из очереди
         
-        if not user_id:
-            logger.error(f"❌ Missing user_id for {model.__name__}")
-            raise SkipTask(f"{model.__name__} requires 'user_id' field")
-        
-        user_id = int(user_id)
-        logger.debug(f"🔍 Checking: user_id={user_id}")
-        
-        existing = await repo.get_one(user_id=user_id)
-        
-        if existing is not None:
-            logger.debug(f"📌 Record exists: user_id={user_id}. model - {model} ")
+        Типы операций: Create, Update
+        Автоматическая конвертация операций при необходимости
+        """
+    
+        logger.info(f"📥 DB task: model={data.get('model')}, type={data.get('type')}")
+    
+        data = deserialize_data(data)
+    
+        # ═══════════════════════════════════════════════════════════════
+        # ЭТАП 1: Инициализация и валидация
+        # ═══════════════════════════════════════════════════════════════
+
+        logger.info(f"🚀 Starting DB operation: {data.get('type', 'UNKNOWN').upper()}")
+        logger.debug(f"📦 Raw data: {json.dumps(data, default=str, ensure_ascii=False)[:500]}...")
+
+        model = MODEL_REGISTRY.get(data['model'])
+        if not model:
+            logger.error(f"❌ Unknown model: {data['model']}")
+            logger.error(f"📋 Available models: {list(MODEL_REGISTRY.keys())}")
+            raise SkipTask(f"Unknown model: {data['model']}")
+
+        logger.info(f"✅ Model resolved: {model.__name__}")
+
+        repo = BaseRepository(session=session, model=model)
+        data_type: str = data['type'].lower()
+
+        logger.debug(f"📌 Operation type: {data_type}")
+
+        # Извлекаем данные для БД (без служебных полей)
+        db_data = {
+            k: v for k, v in data.items() 
+            if k not in ("model", "type", "filter")
+        }
+
+        logger.debug(f"🗃️  DB data fields: {list(db_data.keys())}")
+        logger.debug(f"🗃️  DB data values: {json.dumps(db_data, default=str, ensure_ascii=False)[:300]}...")
+
+        # ═══════════════════════════════════════════════════════════════
+        # ЭТАП 2: Проверка существования для моделей с user_id
+        # ═══════════════════════════════════════════════════════════════
+
+        if model in UNIQUE_USER_ID_MODELS:
+            logger.info(f"🔑 Model {model.__name__} requires user_id uniqueness check")
             
-            current_data = {
-                k: v for k, v in existing.as_dict().items() 
-                if v is not None
-            }
+            user_id = data.get('user_id') or data.get('filter', {}).get('user_id')
             
-            new_data = {
-                k: v for k, v in db_data.items()
-                if k != 'user_id'
-            }
+            if not user_id:
+                logger.error(f"❌ Missing user_id for {model.__name__}")
+                logger.error(f"📦 Available fields: {list(data.keys())}")
+                raise SkipTask(f"{model.__name__} requires 'user_id' field")
             
-            has_changes = False
-            for key, new_value in new_data.items():
-                current_value = current_data.get(key)
+            user_id = int(user_id)
+            logger.info(f"🔍 Checking existence: model={model.__name__}, user_id={user_id}")
+            
+            existing = await repo.get_one(user_id=user_id)
+            
+            # ───────────────────────────────────────────────────────────
+            # Случай A: Запись СУЩЕСТВУЕТ
+            # ───────────────────────────────────────────────────────────
+            
+            if existing is not None:
+                logger.info(f"📌 Record EXISTS: model={model.__name__}, user_id={user_id}")
                 
-                if isinstance(new_value, datetime):
-                    new_value = new_value.isoformat()
-                if isinstance(current_value, datetime):
-                    current_value = current_value.isoformat()
+                current_data = {
+                    k: v for k, v in existing.as_dict().items() 
+                    if v is not None
+                }
+                logger.debug(f"📊 Current data fields: {list(current_data.keys())}")
+                logger.debug(f"📊 Current data: {json.dumps(current_data, default=str, ensure_ascii=False)[:300]}...")
                 
-                if new_value != current_value:
-                    has_changes = True
-                    logger.debug(f"📝 Change: {key}={current_value}→{new_value}")
-                    break
+                new_data = {
+                    k: v for k, v in db_data.items()
+                    if k != 'user_id'
+                }
+                logger.debug(f"🆕 New data fields: {list(new_data.keys())}")
+                logger.debug(f"🆕 New data: {json.dumps(new_data, default=str, ensure_ascii=False)[:300]}...")
+                
+                # Сравнение данных
+                has_changes = False
+                changes_log = []
+                
+                for key, new_value in new_data.items():
+                    current_value = current_data.get(key)
+                    
+                    # Нормализация для сравнения
+                    new_value_normalized = new_value
+                    current_value_normalized = current_value
+                    
+                    if isinstance(new_value, datetime):
+                        new_value_normalized = new_value.isoformat()
+                    if isinstance(current_value, datetime):
+                        current_value_normalized = current_value.isoformat()
+                    
+                    if new_value_normalized != current_value_normalized:
+                        has_changes = True
+                        change_msg = f"{key}: {current_value_normalized} → {new_value_normalized}"
+                        changes_log.append(change_msg)
+                        logger.debug(f"📝 Change detected: {change_msg}")
+                
+                if not has_changes:
+                    logger.info(f"⏭️  No changes detected: model={model.__name__}, user_id={user_id}")
+                    logger.debug(f"✓ All {len(new_data)} fields match existing record")
+                    
+                    if process_once:
+                        logger.debug(f"🔄 Returning 'skipped' (process_once=True)")
+                        return 'skipped'
+                    
+                    logger.debug(f"⏭️  Skipping task (no changes)")
+                    raise SkipTask
+                
+                logger.info(f"📝 Changes found: {len(changes_log)} field(s)")
+                for change in changes_log:
+                    logger.info(f"  ↳ {change}")
+                
+                # Конвертация CREATE → UPDATE
+                if data_type == "create":
+                    logger.warning(f"🔄 Converting CREATE → UPDATE: model={model.__name__}, user_id={user_id}")
+                    logger.debug(f"   Reason: Record already exists")
+                    
+                    data_type = 'update'
+                    data['filter'] = {'user_id': user_id}
+                    db_data = {k: v for k, v in db_data.items() if k != 'user_id'}
+                    
+                    logger.debug(f"✓ Updated operation type: {data_type}")
+                    logger.debug(f"✓ Filter set: {data['filter']}")
+                    logger.debug(f"✓ Update data: {list(db_data.keys())}")
             
-            if not has_changes:
-                logger.debug(f"⏭️  No changes: user_id={user_id}")
-                if process_once:
-                    return 'skipped'
-                raise SkipTask
+            # ───────────────────────────────────────────────────────────
+            # Случай B: Запись НЕ СУЩЕСТВУЕТ
+            # ───────────────────────────────────────────────────────────
             
-            if data_type == "create":
-                logger.info(f"🔄 CREATE→UPDATE: user_id={user_id}")
-                data_type = 'update'
-                data['filter'] = {'user_id': user_id}
-                db_data = {k: v for k, v in db_data.items() if k != 'user_id'}
-        
+            else:
+                logger.info(f"✨ Record NOT FOUND: model={model.__name__}, user_id={user_id}")
+                
+                # Конвертация UPDATE → CREATE
+                if data_type == "update":
+                    logger.warning(f"🔄 Converting UPDATE → CREATE: model={model.__name__}, user_id={user_id}")
+                    logger.debug(f"   Reason: Record does not exist")
+                    
+                    data_type = 'create'
+                    
+                    if 'filter' in data and 'user_id' in data['filter']:
+                        db_data['user_id'] = user_id
+                        logger.debug(f"✓ Added user_id to db_data: {user_id}")
+                    
+                    # Генерация UUID для UserLinks
+                    if model == UserLinks and ('uuid' not in db_data or not db_data.get('uuid')):
+                        generated_uuid = str(uuid.uuid4())
+                        db_data['uuid'] = generated_uuid
+                        logger.info(f"🆔 Generated UUID for UserLinks: {generated_uuid}")
+                    
+                    data.pop('filter', None)
+                    logger.debug(f"✓ Removed filter from data")
+                    logger.debug(f"✓ Final db_data: {list(db_data.keys())}")
+
         else:
-            logger.debug(f"✨ No record: user_id={user_id}")
+            logger.debug(f"⏭️  Model {model.__name__} does not require user_id uniqueness check")
+
+        # ═══════════════════════════════════════════════════════════════
+        # ЭТАП 3: Выполнение операции
+        # ═══════════════════════════════════════════════════════════════
+
+        logger.info(f"⚙️  Executing operation: {data_type.upper()}")
+        logger.debug(f"📋 Final operation details:")
+        logger.debug(f"   Model: {model.__name__}")
+        logger.debug(f"   Type: {data_type}")
+        logger.debug(f"   Data fields: {list(db_data.keys())}")
+
+        # ───────────────────────────────────────────────────────────
+        # CREATE
+        # ───────────────────────────────────────────────────────────
+
+        if data_type == "create":
+            logger.info(f"➕ Creating new {model.__name__} record")
+            logger.debug(f"📦 Create data: {json.dumps(db_data, default=str, ensure_ascii=False)[:500]}...")
             
-            # Конвертируем UPDATE → CREATE
-            if data_type == "update":
-                logger.info(f"🔄 UPDATE→CREATE: user_id={user_id}")
-                data_type = 'create'
-                
-                if 'filter' in data and 'user_id' in data['filter']:
-                    db_data['user_id'] = user_id
-                
-                if model == UserLinks and ('uuid' not in db_data or not db_data.get('uuid')):
-                    db_data['uuid'] = str(uuid.uuid4())
-                    logger.debug(f"🆔 Generated uuid: {db_data['uuid']}")
+            try:
+                res = await repo.create(**db_data)
+                logger.info(f"✅ Successfully created {model.__name__}")
+                logger.debug(f"📊 Created record: {res}")
+                result_type = "create"
+            except Exception as e:
+                logger.error(f"❌ Failed to create {model.__name__}: {type(e).__name__}: {e}")
+                logger.error(f"📦 Data that caused error: {json.dumps(db_data, default=str, ensure_ascii=False)}")
+                raise
 
-                data.pop('filter', None)
-    
-    # Выполняем операцию
-    if data_type == "create":
-        logger.info(f"➕ Creating {model.__name__}")
-        res = await repo.create(**db_data)
-        logger.info(f"✅ Created: {res}")
-        result_type = "create"
-        
-    elif data_type == "update":
-        filter_data = data.get('filter', {})
-        
-        if not filter_data:
-            logger.error("❌ Update requires filter")
-            raise ValueError("Update requires 'filter' parameter")
-        
-        update_data = {k: v for k, v in db_data.items() if k != 'user_id'}
-        
-        logger.info(f"🔄 Updating {model.__name__}: {filter_data}")
-        res = await repo.update(data=update_data, **filter_data)
-        logger.info(f"✅ Updated: {res} rows")
-        result_type = 'update'
-    
-    else:
-        logger.error(f"❌ Unknown type: {data_type}")
-        raise ValueError(f"Unknown operation type: {data_type}")
-    
-    # Обновляем кеш
-    if model == User:
-        user_id = db_data.get('user_id') or data.get('filter', {}).get('user_id')
-        user: User | None = await repo.get_one(user_id=int(user_id))
-        
-        if user is None:
-            raise ValueError
-        
-        user_data = user.as_dict()
-        await redis_cli.set(f"USER_DATA:{user_id}", json.dumps(user_data, default=str), ex=3600)
+        # ───────────────────────────────────────────────────────────
+        # UPDATE
+        # ───────────────────────────────────────────────────────────
 
-    elif model == UserLinks:
-        user_id = db_data.get('user_id') or data.get('filter', {}).get('user_id')
-        user_links: UserLinks | None = await repo.get_one(user_id=int(user_id))
-        
-        if user_links is None:
-            raise ValueError
-        
-        user_data = user_links.as_dict()
-        await redis_cli.set(f"USER_UUID:{user_id}", json.dumps(user_data['uuid'], default=str), ex=3600)
+        elif data_type == "update":
+            filter_data = data.get('filter', {})
+            
+            if not filter_data:
+                logger.error(f"❌ Update requires filter for {model.__name__}")
+                logger.error(f"📦 Available data keys: {list(data.keys())}")
+                raise ValueError("Update requires 'filter' parameter")
+            
+            logger.info(f"🔄 Updating {model.__name__} record(s)")
+            logger.debug(f"🔍 Filter: {filter_data}")
+            
+            update_data = {k: v for k, v in db_data.items() if k != 'user_id'}
+            logger.debug(f"📦 Update data fields: {list(update_data.keys())}")
+            logger.debug(f"📦 Update data: {json.dumps(update_data, default=str, ensure_ascii=False)[:500]}...")
+            
+            try:
+                res = await repo.update(data=update_data, **filter_data)
+                logger.info(f"✅ Successfully updated {model.__name__}: {res} row(s) affected")
+                logger.debug(f"📊 Update result: {res}")
+                result_type = 'update'
+            except Exception as e:
+                logger.error(f"❌ Failed to update {model.__name__}: {type(e).__name__}: {e}")
+                logger.error(f"🔍 Filter: {filter_data}")
+                logger.error(f"📦 Update data: {json.dumps(update_data, default=str, ensure_ascii=False)}")
+                raise
 
-    if process_once:
-        return result_type
+        # ───────────────────────────────────────────────────────────
+        # UNKNOWN
+        # ───────────────────────────────────────────────────────────
+
+        else:
+            logger.error(f"❌ Unknown operation type: {data_type}")
+            logger.error(f"📋 Expected: 'create' or 'update'")
+            logger.error(f"📦 Full data: {json.dumps(data, default=str, ensure_ascii=False)}")
+            raise ValueError(f"Unknown operation type: {data_type}")
+
+        # ═══════════════════════════════════════════════════════════════
+        # ЭТАП 4: Обновление кеша
+        # ═══════════════════════════════════════════════════════════════
+
+        logger.debug(f"💾 Checking cache update requirements for {model.__name__}")
+
+        if model == User:
+            user_id = db_data.get('user_id') or data.get('filter', {}).get('user_id')
+            logger.info(f"💾 Updating User cache: user_id={user_id}")
+            
+            user: User | None = await repo.get_one(user_id=int(user_id))
+            
+            if user is None:
+                logger.error(f"❌ User not found after {result_type}: user_id={user_id}")
+                raise ValueError(f"User {user_id} not found after operation")
+            
+            user_data = user.as_dict()
+            cache_key = f"USER_DATA:{user_id}"
+            await redis_cli.set(cache_key, json.dumps(user_data, default=str), ex=3600)
+            logger.debug(f"✅ Cached User data: key={cache_key}, ttl=3600s")
+
+        elif model == UserLinks:
+            user_id = db_data.get('user_id') or data.get('filter', {}).get('user_id')
+            logger.info(f"💾 Updating UserLinks cache: user_id={user_id}")
+            
+            user_links: UserLinks | None = await repo.get_one(user_id=int(user_id))
+            
+            if user_links is None:
+                logger.error(f"❌ UserLinks not found after {result_type}: user_id={user_id}")
+                raise ValueError(f"UserLinks for user {user_id} not found after operation")
+            
+            user_data = user_links.as_dict()
+            uuid_value = user_data['uuid']
+            cache_key = f"USER_UUID:{user_id}"
+            await redis_cli.set(cache_key, json.dumps(uuid_value, default=str), ex=3600)
+            logger.debug(f"✅ Cached UserLinks UUID: key={cache_key}, uuid={uuid_value}, ttl=3600s")
+
+        else:
+            logger.debug(f"⏭️  No cache update needed for {model.__name__}")
+
+        # ═══════════════════════════════════════════════════════════════
+        # Завершение
+        # ═══════════════════════════════════════════════════════════════
+
+        logger.info(f"🎉 DB operation completed successfully")
+        logger.info(f"📊 Summary: model={model.__name__}, operation={result_type}, user_id={db_data.get('user_id', 'N/A')}")
+
+        if process_once:
+            logger.debug(f"🔄 Returning result_type: {result_type}")
+            return result_type    
+    #         else:
+    #     logger.error(f"❌ Unknown type: {data_type}")
+    #     raise ValueError(f"Unknown operation type: {data_type}")
+    
+    # # Обновляем кеш
+    # if model == User:
+    #     user_id = db_data.get('user_id') or data.get('filter', {}).get('user_id')
+    #     user: User | None = await repo.get_one(user_id=int(user_id))
+        
+    #     if user is None:
+    #         raise ValueError
+        
+    #     user_data = user.as_dict()
+    #     await redis_cli.set(f"USER_DATA:{user_id}", json.dumps(user_data, default=str), ex=3600)
+
+    # elif model == UserLinks:
+    #     user_id = db_data.get('user_id') or data.get('filter', {}).get('user_id')
+    #     user_links: UserLinks | None = await repo.get_one(user_id=int(user_id))
+        
+    #     if user_links is None:
+    #         raise ValueError
+        
+    #     user_data = user_links.as_dict()
+    #     await redis_cli.set(f"USER_UUID:{user_id}", json.dumps(user_data['uuid'], default=str), ex=3600)
+
+    # if process_once:
+    #     return result_type
 
 
 # --- Payment Processing Worker ---
