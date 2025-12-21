@@ -11,6 +11,10 @@
             padding: 0;
             box-sizing: border-box;
         }
+        html {
+            scroll-behavior: smooth;
+            -webkit-overflow-scrolling: touch; /* Для iOS */
+        }
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
@@ -21,6 +25,8 @@
             line-height: 1.6;
             position: relative;
             overflow-x: hidden;
+            transform: translateZ(0);
+            -webkit-transform: translateZ(0);
         }
 
         body::before {
@@ -256,6 +262,7 @@
             box-shadow: 
                 0 4px 20px rgba(0, 0, 0, 0.15),
                 inset 0 1px 0 rgba(255, 255, 255, 0.1);
+            will-change: transform, opacity;
         }
 
         .platform-button::before {
@@ -323,6 +330,10 @@
 
         .instructions-container {
             display: none;
+            will-change: opacity, max-height;
+            transition: opacity 0.2s ease-out, max-height 0.3s ease-out;
+            transform: translateZ(0);
+            -webkit-transform: translateZ(0);
         }
 
         .instructions-container.active {
@@ -331,8 +342,14 @@
         }
 
         @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
 
         .platform-instructions {
@@ -683,11 +700,24 @@
             const linkElement = document.getElementById('subscriptionLink');
             const button = document.querySelector('.copy-button');
             const text = linkElement.textContent;
-
+            
+            // Telegram WebApp API для копирования (работает лучше)
+            if (window.Telegram && window.Telegram.WebApp) {
+                window.Telegram.WebApp.showAlert('Ссылка скопирована!');
+                navigator.clipboard.writeText(text);
+                button.textContent = '✅ Скопировано!';
+                button.classList.add('copied');
+                setTimeout(() => {
+                    button.textContent = '📋 Скопировать ссылку';
+                    button.classList.remove('copied');
+                }, 2000);
+                return;
+            }
+            
+            // Fallback для обычных браузеров
             navigator.clipboard.writeText(text).then(() => {
                 button.textContent = '✅ Скопировано!';
                 button.classList.add('copied');
-                
                 setTimeout(() => {
                     button.textContent = '📋 Скопировать ссылку';
                     button.classList.remove('copied');
@@ -702,10 +732,8 @@
                 textarea.select();
                 document.execCommand('copy');
                 document.body.removeChild(textarea);
-                
                 button.textContent = '✅ Скопировано!';
                 button.classList.add('copied');
-                
                 setTimeout(() => {
                     button.textContent = '📋 Скопировать ссылку';
                     button.classList.remove('copied');
@@ -726,18 +754,30 @@
             
             // Активируем выбранную платформу
             event.target.closest('.platform-button').classList.add('active');
-            document.getElementById(platform + '-instructions').classList.add('active');
+            const targetElement = document.getElementById(platform + '-instructions');
+            targetElement.classList.add('active');
             
-            // Плавная прокрутка к инструкциям
-            setTimeout(() => {
-                document.getElementById(platform + '-instructions').scrollIntoView({ 
-                    behavior: 'smooth', 
-                    block: 'nearest' 
+            // ✅ ИСПРАВЛЕНИЕ для Telegram WebApp
+            // Используем requestAnimationFrame для плавности
+            requestAnimationFrame(() => {
+                // Вместо scrollIntoView используем прямую прокрутку
+                const elementPosition = targetElement.getBoundingClientRect().top;
+                const offsetPosition = elementPosition + window.pageYOffset - 20;
+                
+                // Плавная прокрутка через CSS
+                window.scrollTo({
+                    top: offsetPosition,
+                    behavior: 'smooth'
                 });
-            }, 100);
+                
+                // Для Telegram WebApp - расширяем окно
+                if (window.Telegram && window.Telegram.WebApp) {
+                    window.Telegram.WebApp.expand();
+                }
+            });
         }
 
-        // Автоматически показываем iOS инструкции при загрузке
+        // Автоматически показываем платформу при загрузке
         window.addEventListener('load', () => {
             const userAgent = navigator.userAgent.toLowerCase();
             let defaultPlatform = 'ios';
@@ -748,10 +788,26 @@
                 defaultPlatform = 'windows';
             }
             
-            // Симулируем клик на соответствующую кнопку
-            const buttons = document.querySelectorAll('.platform-button');
-            const platformIndex = defaultPlatform === 'ios' ? 0 : (defaultPlatform === 'android' ? 1 : 2);
-            buttons[platformIndex].click();
+            // ✅ Используем setTimeout вместо прямого клика (плавнее в Telegram)
+            setTimeout(() => {
+                const buttons = document.querySelectorAll('.platform-button');
+                const platformIndex = defaultPlatform === 'ios' ? 0 : (defaultPlatform === 'android' ? 1 : 2);
+                
+                if (buttons[platformIndex]) {
+                    // Симулируем клик без event propagation
+                    const clickEvent = new Event('click', { bubbles: true });
+                    buttons[platformIndex].dispatchEvent(clickEvent);
+                }
+            }, 100);
+            
+            // Инициализация Telegram WebApp
+            if (window.Telegram && window.Telegram.WebApp) {
+                window.Telegram.WebApp.ready();
+                window.Telegram.WebApp.expand();
+                
+                // Отключаем vertical swipes в Telegram (уменьшает лаги)
+                window.Telegram.WebApp.disableVerticalSwipes();
+            }
         });
     </script>
 </body>
