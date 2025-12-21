@@ -848,6 +848,11 @@ async def db_worker(
             
             else:
                 logger.info(f"✨ Record NOT FOUND: model={model.__name__}, user_id={user_id}")
+                # Генерация UUID для UserLinks
+                if model == UserLinks and ('uuid' not in db_data or not db_data.get('uuid')):
+                    generated_uuid = str(uuid.uuid4())
+                    db_data['uuid'] = generated_uuid
+                    logger.info(f"🆔 Generated UUID for UserLinks: {generated_uuid}")
                 
                 # Конвертация UPDATE → CREATE
                 if data_type == "update":
@@ -859,12 +864,6 @@ async def db_worker(
                     if 'filter' in data and 'user_id' in data['filter']:
                         db_data['user_id'] = user_id
                         logger.debug(f"✓ Added user_id to db_data: {user_id}")
-                    
-                    # Генерация UUID для UserLinks
-                    if model == UserLinks and ('uuid' not in db_data or not db_data.get('uuid')):
-                        generated_uuid = str(uuid.uuid4())
-                        db_data['uuid'] = generated_uuid
-                        logger.info(f"🆔 Generated UUID for UserLinks: {generated_uuid}")
                     
                     data.pop('filter', None)
                     logger.debug(f"✓ Removed filter from data")
@@ -991,33 +990,6 @@ async def db_worker(
         if process_once:
             logger.debug(f"🔄 Returning result_type: {result_type}")
             return result_type    
-    #         else:
-    #     logger.error(f"❌ Unknown type: {data_type}")
-    #     raise ValueError(f"Unknown operation type: {data_type}")
-    
-    # # Обновляем кеш
-    # if model == User:
-    #     user_id = db_data.get('user_id') or data.get('filter', {}).get('user_id')
-    #     user: User | None = await repo.get_one(user_id=int(user_id))
-        
-    #     if user is None:
-    #         raise ValueError
-        
-    #     user_data = user.as_dict()
-    #     await redis_cli.set(f"USER_DATA:{user_id}", json.dumps(user_data, default=str), ex=3600)
-
-    # elif model == UserLinks:
-    #     user_id = db_data.get('user_id') or data.get('filter', {}).get('user_id')
-    #     user_links: UserLinks | None = await repo.get_one(user_id=int(user_id))
-        
-    #     if user_links is None:
-    #         raise ValueError
-        
-    #     user_data = user_links.as_dict()
-    #     await redis_cli.set(f"USER_UUID:{user_id}", json.dumps(user_data['uuid'], default=str), ex=3600)
-
-    # if process_once:
-    #     return result_type
 
 
 # --- Payment Processing Worker ---
