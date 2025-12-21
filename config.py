@@ -47,6 +47,8 @@ class Settings(BaseSettings):
 
     DOMAIN: str
 
+    DEBUG: bool | bool = False
+
     @property
     def DATABASE_URL(self) -> str:
         """Асинхронный URL для asyncpg"""
