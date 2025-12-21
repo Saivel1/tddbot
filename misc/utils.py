@@ -633,6 +633,48 @@ async def marzban_worker(
             db_data_panels['type'] = 'update'
             db_data_panels['filter'] = {"user_id": int(data['user_id'])}
 
+        if res == 404 and data['type'] == "modify":
+            if not data.get('panel') or panel_url == s.DNS1_URL:
+                # Тогда это дефолтная панель, и нужно проверить во второй
+
+                async with MarzbanClient(base_url=s.DNS2_URL) as sec_client:
+                    user = await sec_client.get_user(
+                        username=data['user_id']
+                    )
+
+            elif panel_url:
+                # Тогда запрос был ко второй панели
+                async with MarzbanClient() as sec_client:
+                    user = await sec_client.get_user(
+                        username=data['user_id']
+                    )
+            
+            else:
+                raise SkipTask(f"panel is not specifieyd and seems like an error please double check settings")
+            
+            if user == 404:
+                data['type'] = "create"
+                await redis_cli.lpush(
+                    "MARZBAN",
+                    json.dumps(data, sort_keys=True, default=str)
+                ) #type: ignore
+
+                raise SkipTask(f"Doesn't exsist anywhere so it pulled back in qeue {data['user_id']}")
+
+            if not isinstance(user, dict):
+                await notifyer_of_down_wrk("Marzban are down so it can't add or modify any user")
+                await asyncio.sleep(600)
+                raise TimeoutError("All panels are down or some other issue happend")
+                    
+            data['id'] = user['proxies']['vless']['id']
+            data['type'] = "create"
+            await redis_cli.lpush(
+                "MARZBAN",
+                json.dumps(data, sort_keys=True, default=str)
+            ) #type: ignore
+            
+            raise SkipTask(f"Doesn't exsist anywhere so it pulled back in qeue {data['user_id']}")
+
         if type(res) != dict:
             logger.error(f"❌ Unexpected Marzban response type: {type(res)}")
             raise TimeoutError(f"Returns {type(res)} - {res}")

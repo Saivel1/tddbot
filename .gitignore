@@ -221,3 +221,4 @@ docker-compose.override.yml
 init-letsencrypt.sh
 renew-ssl.sh
 mailserver.env
+fail.sh
