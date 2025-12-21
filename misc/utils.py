@@ -609,7 +609,6 @@ async def marzban_worker(
 
             db_data_panels['type'] = 'create'
             db_data_panels['user_id'] = int(data['user_id'])
-            db_data_panels['uuid'] = str(uuid.uuid4())
         
         elif data["type"] == "modify":
             logger.debug(f"🔄 Modifying user in Marzban: {marz_data['username']}")
