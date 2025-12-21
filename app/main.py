@@ -441,7 +441,7 @@ app = Litestar(
         vpn_guide,
         process_sub
     ],
-    debug=True,
+    debug=False,
     dependencies={
         "redis_cli": Provide(provide_redis),
         "session": Provide(provide_db)
