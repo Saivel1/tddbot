@@ -245,13 +245,13 @@
             margin-bottom: 40px;
         }
 
-        .platform-button {
+       .platform-button {
             background: rgba(45, 55, 72, 0.25);
             backdrop-filter: blur(20px) saturate(180%);
             -webkit-backdrop-filter: blur(20px) saturate(180%);
             border: 1.5px solid rgba(255, 255, 255, 0.1);
-            border-radius: 20px;
-            padding: 28px 20px;
+            border-radius: 16px; /* Уменьшено с 20px */
+            padding: 16px 12px; /* Уменьшено с 28px 20px */
             cursor: pointer;
             transition: none;
             text-align: center;
@@ -260,6 +260,8 @@
             box-shadow: 
                 0 4px 20px rgba(0, 0, 0, 0.15),
                 inset 0 1px 0 rgba(255, 255, 255, 0.1);
+            flex: 1; /* Равномерное распределение */
+            min-width: 0; /* Позволяет сжиматься */
         }
 
         .platform-button::before {
@@ -282,7 +284,7 @@
 
         .platform-button:hover {
             border-color: rgba(79, 54, 42, 0.5);
-            transform: translateY(-8px) scale(1.02);
+            transform: translateY(-4px) scale(1.01); /* Уменьшено смещение */
             box-shadow: 
                 0 12px 35px rgba(79, 54, 42, 0.25),
                 inset 0 1px 0 rgba(255, 255, 255, 0.15);
@@ -301,7 +303,7 @@
             content: '';
             position: absolute;
             inset: -1px;
-            border-radius: 20px;
+            border-radius: 16px;
             padding: 1px;
             background: linear-gradient(135deg, rgba(79, 54, 42, 0.5), rgba(108, 106, 106, 0.3));
             -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
@@ -311,18 +313,91 @@
         }
 
         .platform-button-icon {
-            font-size: 3em;
-            margin-bottom: 10px;
+            font-size: 2em; /* Уменьшено с 3em */
+            margin-bottom: 6px; /* Уменьшено с 10px */
             position: relative;
             z-index: 1;
         }
 
         .platform-button-text {
-            font-size: 1.1em;
+            font-size: 0.85em; /* Уменьшено с 1.1em */
             font-weight: 600;
             color: #ffffff;
             position: relative;
             z-index: 1;
+            white-space: nowrap; /* Текст в одну строку */
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        /* Контейнер для кнопок */
+        .platforms {
+            display: flex;
+            gap: 8px; /* Уменьшенный отступ между кнопками */
+            margin: 20px 0;
+            padding: 0 10px; /* Отступы по бокам на мобильных */
+        }
+
+        /* Адаптация для очень маленьких экранов */
+        @media (max-width: 400px) {
+            .platform-button {
+                padding: 12px 8px;
+                border-radius: 12px;
+            }
+            
+            .platform-button-icon {
+                font-size: 1.5em;
+                margin-bottom: 4px;
+            }
+            
+            .platform-button-text {
+                font-size: 0.75em;
+            }
+            
+            .platforms {
+                gap: 6px;
+                padding: 0 5px;
+            }
+        }
+
+        /* Для средних экранов */
+        @media (min-width: 768px) {
+            .platforms {
+                max-width: 600px;
+                margin: 20px auto;
+            }
+            
+            .platform-button {
+                padding: 20px 16px;
+            }
+            
+            .platform-button-icon {
+                font-size: 2.5em;
+            }
+            
+            .platform-button-text {
+                font-size: 1em;
+            }
+        }
+
+        /* Для больших экранов */
+        @media (min-width: 1024px) {
+            .platforms {
+                max-width: 800px;
+            }
+            
+            .platform-button {
+                padding: 28px 20px;
+            }
+            
+            .platform-button-icon {
+                font-size: 3em;
+                margin-bottom: 10px;
+            }
+            
+            .platform-button-text {
+                font-size: 1.1em;
+            }
         }
 
         .instructions-container {
