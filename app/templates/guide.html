@@ -239,7 +239,7 @@
         }
 
         .platform-selector {
-            display: grid;
+            display: flex;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
             gap: 15px;
             margin-bottom: 40px;
@@ -333,6 +333,7 @@
         /* Контейнер для кнопок */
         .platforms {
             display: flex;
+            flex-direction: row;
             gap: 8px; /* Уменьшенный отступ между кнопками */
             margin: 20px 0;
             padding: 0 10px; /* Отступы по бокам на мобильных */
