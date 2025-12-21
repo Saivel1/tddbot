@@ -1,32 +1,54 @@
-import subprocess
 import aiohttp
 from config import settings as s
 from logger_setup import logger
 import secrets
 import string
 import re
+import docker
+from docker.errors import NotFound, APIError
 
 
 def run_docker_command(command: list) -> tuple[bool, str]:
-    """Выполнить команду в контейнере mailserver"""
+    """Выполнить команду в контейнере mailserver через Docker API"""
     try:
-        result = subprocess.run(
-            ["docker", "exec", "mailserver"] + command,
-            capture_output=True,
-            text=True,
-            check=True,
-            timeout=10
+        # Подключаемся к Docker daemon
+        client = docker.from_env()
+        
+        # Получаем контейнер mailserver
+        container = client.containers.get("mailserver")
+        
+        # Выполняем команду
+        exec_result = container.exec_run(
+            cmd=command,
+            stdout=True,
+            stderr=True,
+            demux=False  # Объединяем stdout и stderr
         )
-        return True, result.stdout
-    except subprocess.CalledProcessError as e:
-        logger.error(f"Command failed: {e.stderr}")
-        return False, e.stderr
-    except subprocess.TimeoutExpired:
-        logger.error("Command timeout")
-        return False, "Timeout"
+        
+        # Декодируем вывод
+        output = exec_result.output.decode('utf-8') if exec_result.output else ""
+        
+        if exec_result.exit_code == 0:
+            logger.info(f"Command succeeded: {' '.join(command)}")
+            return True, output
+        else:
+            logger.error(f"Command failed (exit {exec_result.exit_code}): {output}")
+            return False, output
+            
+    except NotFound:
+        error_msg = "Mailserver container not found"
+        logger.error(error_msg)
+        return False, error_msg
+        
+    except APIError as e:
+        error_msg = f"Docker API error: {str(e)}"
+        logger.error(error_msg)
+        return False, error_msg
+        
     except Exception as e:
-        logger.error(f"Unexpected error: {e}")
-        return False, str(e)
+        error_msg = f"Unexpected error: {str(e)}"
+        logger.error(error_msg)
+        return False, error_msg
 
 
 async def list_mailboxes():

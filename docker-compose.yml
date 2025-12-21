@@ -97,6 +97,7 @@ services:
       - vpnbot_internal
     volumes:
       - ./logs:/app/logs
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     deploy:
       resources:
         limits:
