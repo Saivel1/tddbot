@@ -1,5 +1,5 @@
 from functools import wraps
-from typing import Awaitable, Callable, Any
+from typing import Awaitable, Callable
 from redis.asyncio import Redis
 import asyncio
 import json

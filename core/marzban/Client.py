@@ -1,8 +1,9 @@
 import aiohttp
+
 from config import settings as s
-from typing import Any
-from schemas.schem import CreateUserMarzbanModel
 from logger_setup import logger
+from schemas.schem import CreateUserMarzbanModel
+
 
 class MarzbanClient:
     def __init__(
@@ -35,6 +36,11 @@ Password {self.password[:3]}""")
         }
     
     async def __aenter__(self):
+        """_summary_
+
+        Returns:
+            _type_: _description_
+        """
         self.session = aiohttp.ClientSession()
         logger.debug('Вошли в контексный менеджер для MarzbanClient')
         return self
@@ -71,6 +77,14 @@ Password {self.password[:3]}""")
 
 
     async def _inbounds(self):
+        """_inbounds _summary_
+
+        _extended_summary_
+
+        Returns:
+            _description_
+        """
+
         # Пример ответа
         # {'vless': [{'tag': 'VLESS TCP REALITY', 'protocol': 'vless', 'network': 'tcp', 'tls': 'reality', 'port': 443}]}
         await self._token()
@@ -106,7 +120,7 @@ Password {self.password[:3]}""")
             async with self.session.request(
                 method="GET",
                 url=f'{self.base_url}/api/users',
-                headers=self.headers
+                headers=self.headers,
             ) as res:
                 
                 logger.debug(f"Статус от Marzban {res.status}")

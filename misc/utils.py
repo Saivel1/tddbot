@@ -649,7 +649,7 @@ async def marzban_worker(
                     )
             
             else:
-                raise SkipTask(f"panel is not specifieyd and seems like an error please double check settings")
+                raise SkipTask("panel is not specifieyd and seems like an error please double check settings")
             
             if user == 404:
                 data['type'] = "create"
@@ -692,8 +692,9 @@ async def marzban_worker(
         
         # Отправляем задачи в DB
         logger.info(f"📤 Queueing DB tasks: user_id={data['user_id']}")
-        for db_op in (db_data_panels, db_data):
+        for db_op in (db_data, db_data_panels):
             await redis_cli.lpush("DB", json.dumps(db_op, sort_keys=True, default=str)) # type: ignore
+            await asyncio.sleep(1)
 
         logger.info(f"✅ Marzban task completed: user_id={data['user_id']}")
 
@@ -938,7 +939,7 @@ async def db_worker(
             logger.error(f"❌ Unknown operation type: {data_type}")
             logger.error(f"📋 Expected: 'create' or 'update'")
             logger.error(f"📦 Full data: {json.dumps(data, default=str, ensure_ascii=False)}")
-            raise ValueError(f"Unknown operation type: {data_type}")
+            raise SkipTask(f"Unknown operation type: {data_type}")
 
         # ═══════════════════════════════════════════════════════════════
         # ЭТАП 4: Обновление кеша
@@ -954,7 +955,7 @@ async def db_worker(
             
             if user is None:
                 logger.error(f"❌ User not found after {result_type}: user_id={user_id}")
-                raise ValueError(f"User {user_id} not found after operation")
+                raise SkipTask(f"User {user_id} not found after operation")
             
             user_data = user.as_dict()
             cache_key = f"USER_DATA:{user_id}"
@@ -969,7 +970,7 @@ async def db_worker(
             
             if user_links is None:
                 logger.error(f"❌ UserLinks not found after {result_type}: user_id={user_id}")
-                raise ValueError(f"UserLinks for user {user_id} not found after operation")
+                raise SkipTask(f"UserLinks for user {user_id} not found after operation")
             
             user_data = user_links.as_dict()
             uuid_value = user_data['uuid']
