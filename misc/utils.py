@@ -647,12 +647,14 @@ async def marzban_worker(
         raise SkipTask("Нужно пересмотреть проблему")
     
     db_data: dict = {
+        "model": "User",
         "type": "create",
         "user_id": int(data['user_id']),
         "subscription_end": datetime.fromtimestamp(data['expire'])
     }
 
     db_data_panels: dict = {
+        "model": "UserLinks",
         "type": "create",
         "user_id": int(data['user_id']),
     }
