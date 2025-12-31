@@ -617,11 +617,16 @@ async def marzban_worker(
 
     async with MarzbanClient(base_url=panel_url) as client: #type: ignore
         if data['type'] == 'create':
+
             with suppress(KeyError):
                 marz_data['id'] = data['id']
 
-            res = await client.create(
+            cr_data = CreateUserMarzbanModel(
                 **marz_data
+            )
+            
+            res = await client.create(
+                cr_data
             )
 
         else:
