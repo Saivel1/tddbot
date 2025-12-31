@@ -8,6 +8,7 @@ import asyncio
 # Stdlib
 import json
 import uuid
+from contextlib import suppress
 
 # Date & time
 from datetime import datetime, timedelta
@@ -623,6 +624,8 @@ async def marzban_worker(
 
         if res == 409:
             logger.warning(f"⚠️  User exists (409), converting to modify: {marz_data['username']}")
+            
+            marz_data = {k: v for k,v in marz_data if k != "id"}
             res = await client.modify(**marz_data)
 
             db_data['type'] = 'update'
