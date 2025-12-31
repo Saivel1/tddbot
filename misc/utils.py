@@ -626,7 +626,12 @@ async def marzban_worker(
             logger.warning(f"⚠️  User exists (409), converting to modify: {marz_data['username']}")
             
             marz_data = {k: v for k,v in marz_data if k != "id"}
-            res = await client.modify(**marz_data)
+            print(marz_data)
+            
+            res = await client.modify(
+                username=marz_data['user_id'],
+                expire=marz_data['expire']
+            )
 
             db_data['type'] = 'update'
             db_data['filter'] = {"user_id": int(data['user_id'])}
@@ -679,7 +684,7 @@ async def marzban_worker(
             
             raise SkipTask(f"Doesn't exsist anywhere so it pulled back in qeue {data['user_id']}")
 
-        if type(res) != dict:
+        if type(res) is not dict:
             logger.error(f"❌ Unexpected Marzban response type: {type(res)}")
             raise TimeoutError(f"Returns {type(res)} - {res}")
 
