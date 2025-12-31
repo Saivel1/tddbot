@@ -8,7 +8,6 @@ import asyncio
 # Stdlib
 import json
 import uuid
-from contextlib import suppress
 
 # Date & time
 from datetime import datetime, timedelta
@@ -586,127 +585,218 @@ async def marzban_worker(
     
     if data.get('panel'): 
         panel_url = data['panel']
-        logger.debug(f"🎯 Using panel: {panel_url}")
+        logger.info(f"🎯 Using custom panel: {panel_url}")
+    else:
+        panel_url = s.M_DIGITAL_URL
+        logger.info(f"🎯 Using default panel: {panel_url}")
 
-    async with MarzbanClient(base_url=panel_url if panel_url else s.M_DIGITAL_URL) as client:
+    logger.debug(f"📦 Task data: {json.dumps(data, indent=2, default=str)}")
+
+    async with MarzbanClient(base_url=panel_url) as client: #type: ignore
         marz_data: dict = {}
 
         marz_data['username'] = str(data['user_id'])
         marz_data['expire'] = data['expire']
         
+        logger.debug(f"📋 Marzban data prepared: username={marz_data['username']}, expire={marz_data['expire']}")
+        
         db_data: dict = {"model": "User"}
         db_data_panels: dict = {"model": "UserLinks"}
 
         if data['type'] == "create":
-            logger.debug(f"➕ Creating user in Marzban: {marz_data['username']}")
+            logger.info(f"➕ CREATE operation for user: {marz_data['username']}")
+            
             if data.get("id"): 
                 marz_data['id'] = data['id']
+                logger.debug(f"  └─ Using existing ID: {data['id']}")
+            
             create_data = CreateUserMarzbanModel(**marz_data)
+            logger.debug(f"  └─ CreateUserMarzbanModel: {create_data}")
+            
+            logger.info("📡 Sending CREATE request to Marzban...")
             res = await client.create(data=create_data)
+            logger.info(f"📨 Marzban response: {res if isinstance(res, int) else 'success'}")
 
             db_data['type'] = 'create'
             db_data['user_id'] = int(data['user_id'])
             db_data['subscription_end'] = datetime.fromtimestamp(data['expire'])
+            logger.debug(f"  └─ DB data prepared: {db_data}")
 
             db_data_panels['type'] = 'create'
             db_data_panels['user_id'] = int(data['user_id'])
+            logger.debug(f"  └─ DB panels data prepared: {db_data_panels}")
         
         elif data["type"] == "modify":
-            logger.debug(f"🔄 Modifying user in Marzban: {marz_data['username']}")
+            logger.info(f"🔄 MODIFY operation for user: {marz_data['username']}")
+            logger.debug(f"  └─ Modify params: {marz_data}")
+            
+            logger.info("📡 Sending MODIFY request to Marzban...")
             res = await client.modify(**marz_data)
+            logger.info(f"📨 Marzban response: {res if isinstance(res, int) else 'success'}")
 
             db_data['type'] = 'update'
             db_data['filter'] = {"user_id": int(data['user_id'])}
             db_data['subscription_end'] = datetime.fromtimestamp(data['expire'])
+            logger.debug(f"  └─ DB data prepared: {db_data}")
 
             db_data_panels['type'] = 'update'
             db_data_panels['filter'] = {"user_id": int(data['user_id'])}
+            logger.debug(f"  └─ DB panels data prepared: {db_data_panels}")
 
+        # ========== ОБРАБОТКА 409 (USER EXISTS) ==========
         if res == 409:
-            logger.warning(f"⚠️  User exists (409), converting to modify: {marz_data['username']}")
+            logger.warning(f"⚠️  HTTP 409: User already exists in Marzban: {marz_data['username']}")
+            logger.info("🔄 Converting CREATE → MODIFY due to 409")
             
-            marz_data = {k: v for k,v in marz_data if k != "id"}
-            print(marz_data)
+            # Удаляем 'id' из marz_data
+            logger.debug(f"  └─ Original marz_data: {marz_data}")
+            marz_data = {k: v for k, v in marz_data.items() if k != "id"}
+            logger.debug(f"  └─ Filtered marz_data (no 'id'): {marz_data}")
             
+            logger.info("📡 Sending MODIFY request to fix 409...")
             res = await client.modify(
-                username=marz_data['user_id'],
+                username=marz_data['username'],
                 expire=marz_data['expire']
             )
+            logger.info(f"📨 MODIFY response after 409: {res if isinstance(res, int) else 'success'}")
 
             db_data['type'] = 'update'
             db_data['filter'] = {"user_id": int(data['user_id'])}
             db_data['subscription_end'] = datetime.fromtimestamp(data['expire'])
+            logger.debug(f"  └─ Updated DB data: {db_data}")
 
             db_data_panels['type'] = 'update'
             db_data_panels['filter'] = {"user_id": int(data['user_id'])}
+            logger.debug(f"  └─ Updated DB panels data: {db_data_panels}")
 
-            logger.info(f'Это ответ после того, как отправлили modify {res}')
-
+        # ========== ОБРАБОТКА 404 (USER NOT FOUND) ==========
         if res == 404 and data['type'] == "modify":
+            logger.error(f"❌ HTTP 404: User not found in primary panel: {marz_data['username']}")
+            logger.info("🔍 Searching in secondary panel...")
+            
+            # Определяем secondary panel
             if not data.get('panel') or panel_url == s.DNS1_URL:
-                # Тогда это дефолтная панель, и нужно проверить во второй
-
-                async with MarzbanClient(base_url=s.DNS2_URL) as sec_client:
-                    user = await sec_client.get_user(
-                        username=data['user_id']
-                    )
+                secondary_panel = s.DNS2_URL
+                logger.info(f"  └─ Primary was DNS1, checking DNS2: {secondary_panel}")
+                
+                async with MarzbanClient(base_url=secondary_panel) as sec_client:
+                    logger.debug("📡 GET user from DNS2...")
+                    user = await sec_client.get_user(username=str(data['user_id']))
+                    logger.info(f"📨 DNS2 response: {user if isinstance(user, int) else 'found'}")
 
             elif panel_url:
-                # Тогда запрос был ко второй панели
-                async with MarzbanClient() as sec_client:
-                    user = await sec_client.get_user(
-                        username=data['user_id']
-                    )
+                secondary_panel = s.DNS1_URL  # Default
+                logger.info(f"  └─ Primary was custom ({panel_url}), checking DNS1: {secondary_panel}")
+                
+                async with MarzbanClient(base_url=secondary_panel) as sec_client:
+                    logger.debug("📡 GET user from DNS1...")
+                    user = await sec_client.get_user(username=str(data['user_id']))
+                    logger.info(f"📨 DNS1 response: {user if isinstance(user, int) else 'found'}")
             
             else:
-                raise SkipTask("panel is not specifieyd and seems like an error please double check settings")
+                logger.critical("🔥 Panel not specified and cannot determine secondary!")
+                raise SkipTask("panel is not specified and seems like an error please double check settings")
             
+            # Проверка результата из secondary panel
             if user == 404:
+                logger.error(f"❌ User not found in BOTH panels: {data['user_id']}")
+                logger.info("🔄 Re-queueing as CREATE task...")
+                
                 data['type'] = "create"
-                await redis_cli.lpush(
-                    "MARZBAN",
-                    json.dumps(data, sort_keys=True, default=str)
-                ) #type: ignore
-
-                raise SkipTask(f"Doesn't exsist anywhere so it pulled back in qeue {data['user_id']}")
+                task_json = json.dumps(data, sort_keys=True, default=str)
+                await redis_cli.lpush("MARZBAN", task_json) # type: ignore
+                logger.debug(f"  └─ Task re-queued: {task_json}")
+                
+                raise SkipTask(f"User doesn't exist in any panel, re-queued as CREATE: {data['user_id']}")
 
             if not isinstance(user, dict):
-                await notifyer_of_down_wrk("Marzban are down so it can't add or modify any user")
+                logger.critical(f"🔥 Unexpected user response type: {type(user)}")
+                logger.error(f"  └─ Response: {user}")
+                
+                await notifyer_of_down_wrk("Marzban panels are down, cannot add or modify users")
+                logger.warning("😴 Sleeping 600s due to panel issues...")
                 await asyncio.sleep(600)
-                raise TimeoutError("All panels are down or some other issue happend")
-                    
-            data['id'] = user['proxies']['vless']['id']
-            data['type'] = "create"
-            await redis_cli.lpush(
-                "MARZBAN",
-                json.dumps(data, sort_keys=True, default=str)
-            ) #type: ignore
+                
+                raise TimeoutError("All panels are down or some other issue happened")
             
-            raise SkipTask(f"Doesn't exsist anywhere so it pulled back in qeue {data['user_id']}")
+            # User найден в secondary panel
+            logger.info("✅ User found in secondary panel!")
+            logger.debug(f"  └─ User data: {json.dumps(user, indent=2, default=str)}")
+            
+            try:
+                data['id'] = user['proxies']['vless']['id']
+                logger.info(f"  └─ Extracted VLESS ID: {data['id']}")
+            except KeyError as e:
+                logger.error(f"❌ Failed to extract VLESS ID: {e}")
+                logger.debug(f"  └─ User structure: {user}")
+                raise
+            
+            data['type'] = "create"
+            logger.info("🔄 Converting to CREATE task with ID from secondary panel")
+            
+            task_json = json.dumps(data, sort_keys=True, default=str)
+            await redis_cli.lpush("MARZBAN", task_json) # type: ignore
+            logger.debug(f"  └─ Task re-queued: {task_json}")
+            
+            raise SkipTask(f"User found in secondary panel, re-queued as CREATE: {data['user_id']}")
 
-        if type(res) is not dict:
-            logger.error(f"❌ Unexpected Marzban response type: {type(res)}")
-            raise TimeoutError(f"Returns {type(res)} - {res}")
+        # ========== ВАЛИДАЦИЯ ОТВЕТА ==========
+        if not isinstance(res, dict):
+            logger.error("❌ Unexpected Marzban response type!")
+            logger.error("  ├─ Expected: dict")
+            logger.error(f"  ├─ Got: {type(res)}")
+            logger.error(f"  └─ Value: {res}")
+            raise TimeoutError(f"Invalid response type: {type(res)} - {res}")
 
-        url: str = res['subscription_url']
+        # ========== ОБРАБОТКА SUBSCRIPTION URL ==========
+        try:
+            url: str = res['subscription_url']
+            logger.info(f"🔗 Got subscription URL: {url[:50]}...")
+        except KeyError:
+            logger.error("❌ No 'subscription_url' in response!")
+            logger.debug(f"  └─ Response keys: {list(res.keys())}")
+            logger.debug(f"  └─ Full response: {res}")
+            raise
 
+        # Определяем panel по URL
         if "dns1" in url:
             db_data_panels['panel1'] = url
-            logger.debug(f"🔗 Panel1 link: user_id={data['user_id']}")
+            logger.info(f"✅ Panel1 (DNS1) link saved for user_id={data['user_id']}")
+            logger.debug(f"  └─ URL: {url}")
         elif "dns2" in url:
             db_data_panels['panel2'] = url
-            logger.debug(f"🔗 Panel2 link: user_id={data['user_id']}")
+            logger.info(f"✅ Panel2 (DNS2) link saved for user_id={data['user_id']}")
+            logger.debug(f"  └─ URL: {url}")
         else:
-            logger.error(f"❌ Unknown panel in URL: {url}")
-            raise ValueError(f"Unknown panel {url}")
+            logger.error("❌ Unknown panel in subscription URL!")
+            logger.error(f"  ├─ URL: {url}")
+            logger.error("  ├─ Expected: 'dns1' or 'dns2' in URL")
+            logger.error("  └─ Got: neither")
+            raise ValueError(f"Unknown panel in URL: {url}")
         
-        # Отправляем задачи в DB
-        logger.info(f"📤 Queueing DB tasks: user_id={data['user_id']}")
-        for db_op in (db_data, db_data_panels):
-            await redis_cli.lpush("DB", json.dumps(db_op, sort_keys=True, default=str)) # type: ignore
+        # ========== ОТПРАВКА ЗАДАЧ В DB ==========
+        logger.info("📤 Preparing to queue DB operations...")
+        logger.debug(f"  ├─ db_data: {db_data}")
+        logger.debug(f"  └─ db_data_panels: {db_data_panels}")
+        
+        for idx, db_op in enumerate((db_data, db_data_panels), 1):
+            operation_name = "User" if idx == 1 else "UserLinks"
+            logger.info(f"📤 Queueing DB operation {idx}/2: {operation_name}")
+            
+            task_json = json.dumps(db_op, sort_keys=True, default=str)
+            logger.debug(f"  └─ Task JSON: {task_json}")
+            
+            await redis_cli.lpush("DB", task_json) # type: ignore
+            logger.debug("  └─ Task pushed to Redis DB queue")
+            
+            logger.debug("😴 Sleeping 1s between DB tasks...")
             await asyncio.sleep(1)
 
-        logger.info(f"✅ Marzban task completed: user_id={data['user_id']}")
+        logger.info("✅ Marzban task completed successfully!")
+        logger.info(f"  ├─ User ID: {data['user_id']}")
+        logger.info(f"  ├─ Operation: {data['type']}")
+        logger.info(f"  ├─ Panel: {panel_url}")
+        logger.info(f"  └─ Subscription: {'dns1' if 'dns1' in url else 'dns2'}")
 
 
 # --- Database Worker ---
