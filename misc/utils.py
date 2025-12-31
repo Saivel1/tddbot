@@ -632,6 +632,8 @@ async def marzban_worker(
             db_data_panels['type'] = 'update'
             db_data_panels['filter'] = {"user_id": int(data['user_id'])}
 
+            logger.info(f'Это ответ после того, как отправлили modify {res}')
+
         if res == 404 and data['type'] == "modify":
             if not data.get('panel') or panel_url == s.DNS1_URL:
                 # Тогда это дефолтная панель, и нужно проверить во второй
