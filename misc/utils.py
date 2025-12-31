@@ -3,52 +3,52 @@
 # ============================================================================
 
 # Database / ORM
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, text
-from core.mails.client import create_user_mailbox
-from repositories.base import BaseRepository
-from db.models import User, UserLinks, PaymentData
-from db.database import async_session_maker
+import asyncio
 
-# Redis
-from redis.asyncio import Redis
-
-# Schemas
-from schemas.schem import (
-    UserModel,
-    PayDataModel,
-    CreateUserMarzbanModel,
-)
-
-# External services / clients
-from core.yoomoney.payment import YooPay
-from core.marzban.Client import MarzbanClient
-import aiohttp
-
-# Config
-from config import settings
-from config import settings as s
-
-# Logging
-from logger_setup import logger
-
-# Typing
-from typing import Any, Type, Dict
+# Stdlib
+import json
+import uuid
 
 # Date & time
 from datetime import datetime, timedelta
 
-# Stdlib
-import json
-import asyncio
-import uuid
+# Typing
+from typing import Any, Dict, Type
+
+import aiohttp
+
+# Redis
+from redis.asyncio import Redis
+from sqlalchemy import select, text
+from sqlalchemy.ext.asyncio import AsyncSession
 
 # Bot
 from bot_in import bot
 
-# Decorators
-from misc.decorators import queue_worker, SkipTask
+# Config
+from config import settings
+from config import settings as s
+from core.mails.client import create_user_mailbox
+from core.marzban.Client import MarzbanClient
 
+# External services / clients
+from core.yoomoney.payment import YooPay
+from db.database import async_session_maker
+from db.models import PaymentData, User, UserLinks
+
+# Logging
+from logger_setup import logger
+
+# Decorators
+from misc.decorators import SkipTask, queue_worker
+from repositories.base import BaseRepository
+
+# Schemas
+from schemas.schem import (
+    CreateUserMarzbanModel,
+    PayDataModel,
+    UserModel,
+)
 
 # ============================================================================
 # CONSTANTS
@@ -164,7 +164,7 @@ async def check_db_available() -> bool:
         try:
             await session.execute(text("SELECT 1"))
             return True
-        except Exception as e:
+        except Exception:
             return False
 
 
@@ -820,10 +820,10 @@ async def db_worker(
                     logger.debug(f"✓ All {len(new_data)} fields match existing record")
                     
                     if process_once:
-                        logger.debug(f"🔄 Returning 'skipped' (process_once=True)")
+                        logger.debug("🔄 Returning 'skipped' (process_once=True)")
                         return 'skipped'
                     
-                    logger.debug(f"⏭️  Skipping task (no changes)")
+                    logger.debug("⏭️  Skipping task (no changes)")
                     raise SkipTask
                 
                 logger.info(f"📝 Changes found: {len(changes_log)} field(s)")
@@ -833,7 +833,7 @@ async def db_worker(
                 # Конвертация CREATE → UPDATE
                 if data_type == "create":
                     logger.warning(f"🔄 Converting CREATE → UPDATE: model={model.__name__}, user_id={user_id}")
-                    logger.debug(f"   Reason: Record already exists")
+                    logger.debug("   Reason: Record already exists")
                     
                     data_type = 'update'
                     data['filter'] = {'user_id': user_id}
@@ -858,7 +858,7 @@ async def db_worker(
                 # Конвертация UPDATE → CREATE
                 if data_type == "update":
                     logger.warning(f"🔄 Converting UPDATE → CREATE: model={model.__name__}, user_id={user_id}")
-                    logger.debug(f"   Reason: Record does not exist")
+                    logger.debug("   Reason: Record does not exist")
                     
                     data_type = 'create'
                     
@@ -867,7 +867,7 @@ async def db_worker(
                         logger.debug(f"✓ Added user_id to db_data: {user_id}")
                     
                     data.pop('filter', None)
-                    logger.debug(f"✓ Removed filter from data")
+                    logger.debug("✓ Removed filter from data")
                     logger.debug(f"✓ Final db_data: {list(db_data.keys())}")
 
         else:
@@ -878,7 +878,7 @@ async def db_worker(
         # ═══════════════════════════════════════════════════════════════
 
         logger.info(f"⚙️  Executing operation: {data_type.upper()}")
-        logger.debug(f"📋 Final operation details:")
+        logger.debug("📋 Final operation details:")
         logger.debug(f"   Model: {model.__name__}")
         logger.debug(f"   Type: {data_type}")
         logger.debug(f"   Data fields: {list(db_data.keys())}")
@@ -937,7 +937,7 @@ async def db_worker(
 
         else:
             logger.error(f"❌ Unknown operation type: {data_type}")
-            logger.error(f"📋 Expected: 'create' or 'update'")
+            logger.error("📋 Expected: 'create' or 'update'")
             logger.error(f"📦 Full data: {json.dumps(data, default=str, ensure_ascii=False)}")
             raise SkipTask(f"Unknown operation type: {data_type}")
 
@@ -985,7 +985,7 @@ async def db_worker(
         # Завершение
         # ═══════════════════════════════════════════════════════════════
 
-        logger.info(f"🎉 DB operation completed successfully")
+        logger.info("🎉 DB operation completed successfully")
         logger.info(f"📊 Summary: model={model.__name__}, operation={result_type}, user_id={db_data.get('user_id', 'N/A')}")
 
         if process_once:
