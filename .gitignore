@@ -222,4 +222,4 @@ init-letsencrypt.sh
 renew-ssl.sh
 mailserver.env
 fail.sh
-try.py
+try*

@@ -1,18 +1,20 @@
-from aiogram.types import CallbackQuery, InlineKeyboardButton
-from sqlalchemy.ext.asyncio import AsyncSession
-from keyboards.builder import PayMenu
-from keyboards.deps import BackButton
-from keyboards.markup import PayMenyMarkup
-from misc.utils import cache_popular_pay_time, is_cached_payment
-from redis.asyncio import Redis
-from core.yoomoney.payment import YooPay
-from core.mails.client import create_user_mailbox
 import json
 
-from bot_in import dp
 from aiogram import F
+from aiogram.filters import Command
+from aiogram.types import CallbackQuery, InlineKeyboardButton, Message
+from redis.asyncio import Redis
 
+from bot_in import dp
+from config import settings as s
+from core.mails.client import create_user_mailbox
+from core.yoomoney.payment import YooPay
+from keyboards.builder import PayMenu
+from keyboards.deps import BackButton
 from logger_setup import logger
+from misc.bot_setup import prices
+from misc.utils import cache_popular_pay_time, is_cached_payment
+
 
 async def create_order(amount: int, user_id):
     mail = await create_user_mailbox(user_id)
@@ -26,6 +28,7 @@ async def create_order(amount: int, user_id):
     )
     logger.debug(res)
     return res
+
 
 PAY_MENU_TEXT = """
 💳 <b>Оформление подписки</b>
@@ -78,7 +81,6 @@ async def choose_sum(
         parse_mode="HTML"
     )
 
-from misc.bot_setup import prices
 
 price_list = [v for k, v in prices]
 
@@ -121,7 +123,7 @@ async def payment_process(
             await redis_cache.set(web_wrk_label, json.dumps(data_for_webhook), ex=700)
 
 
-        except:
+        except Exception:
             await callback.message.edit_text( #type:ignore
                     text=ERROR_TEXT,
                     parse_mode="HTML"
@@ -142,4 +144,21 @@ async def payment_process(
         text=reply_text,
         reply_markup=keyboard,
         parse_mode="HTML"
+    )
+
+
+@dp.message(Command("blank"))
+async def blank_pay(message: Message):
+    user_id = message.from_user.id #type:ignore
+    logger.info(f"ID : {user_id} | Ввёл blank")
+
+    if user_id != s.ADMIN_ID:
+        return
+
+    data = await create_order(amount=50, user_id=s.ADMIN_ID)
+    if data is None:
+        return
+    
+    await message.answer(
+        text=f"Ссылка \n {data[0]} \n\n Payment_id {data[1]}"
     )

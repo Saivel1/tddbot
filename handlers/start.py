@@ -86,3 +86,10 @@ async def cmd_id(message: Message):
     user_id = message.from_user.id #type: ignore
     logger.info(f"ID : {user_id} | Ввёл команду /id")
     await message.answer(f"🆔 Ваш ID: <code>{message.from_user.id}</code>", parse_mode="HTML") # type: ignore
+
+
+@dp.message(Command("help"))
+async def cmd_help(message: Message):
+    user_id = message.from_user.id #type: ignore
+    logger.info(f"ID : {user_id} | Ввёл команду /help")
+    await message.answer("@ivvpnhelp") # type: ignore

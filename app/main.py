@@ -3,7 +3,6 @@ import aiohttp
 from litestar import Litestar, Response, get, post, Request
 from litestar.exceptions import HTTPException
 from litestar.di import Provide
-from litestar.params import Dependency
 from litestar.response import Template, Redirect
 from litestar.template.config import TemplateConfig
 from litestar.contrib.jinja import JinjaTemplateEngine
@@ -13,7 +12,6 @@ from litestar.exceptions import NotFoundException, ServiceUnavailableException
 
 
 # Bot / Telegram
-from aiogram import Bot, Dispatcher
 from aiogram.types import Update
 from bot_in import bot, dp
 from misc.bot_setup import SUB_EXPIRED_TEXT, SUB_WILL_EXPIRE
@@ -24,8 +22,8 @@ from logger_setup import logger
 
 # Database / ORM
 from sqlalchemy.ext.asyncio import AsyncSession
-from db.database import async_session_maker, engine
-from db.models import Base, UserLinks
+from db.database import async_session_maker
+from db.models import Base
 from midllewares.db import DatabaseMiddleware
 from repositories.base import BaseRepository
 
@@ -42,7 +40,6 @@ from misc.utils import (
     trial_activation_worker,
     nightly_cache_refresh_worker,
     pub_listner,
-    is_cached_payment,
     worker_exsists,
     payment_wrk,
     get_links_of_panels
@@ -52,7 +49,7 @@ from misc.utils import (
 import json
 import asyncio
 from contextlib import asynccontextmanager
-from typing import Annotated, AsyncGenerator, Optional
+from typing import AsyncGenerator, Optional
 from pathlib import Path
 
 
@@ -255,6 +252,7 @@ async def webhook_marz(
         logger.debug(f'Пришёл запрос от Marzban {data_str[:20]}')
 
         wrk_data: dict = { 
+            "type": "create",
             "user_id": username,
             "expire": item["user"]['expire']
         }
@@ -268,30 +266,28 @@ async def webhook_marz(
 
         if action == 'user_created':
             wrk_data['id'] = item['user']["proxies"]["vless"]['id']
-            wrk_data['type'] = 'create'
             await redis_cli.lpush( #type: ignore
                 "MARZBAN",
                 json.dumps(wrk_data, sort_keys=True, default=str)
             )
 
         elif action == 'user_updated':
-            wrk_data['type'] = 'modify'
             await redis_cli.lpush( #type: ignore
                 "MARZBAN",
                 json.dumps(wrk_data, sort_keys=True, default=str)
             )    
 
-    # elif action == 'user_expired':
-    #    await bot.send_message(
-    #        chat_id=int(username),
-    #        text=SUB_EXPIRED_TEXT
-    #    )
-        
-    #elif action == 'reached_days_left':
-    #    await bot.send_message(
-    #        chat_id=int(username),
-    #        text=SUB_WILL_EXPIRE
-    #    )
+        elif action == 'user_expired':
+           await bot.send_message(
+               chat_id=int(username),
+               text=SUB_EXPIRED_TEXT
+           )
+            
+        elif action == 'reached_days_left':
+           await bot.send_message(
+               chat_id=int(username),
+               text=SUB_WILL_EXPIRE
+           )
 
     return {"ok": True}
 
