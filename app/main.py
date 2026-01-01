@@ -237,7 +237,7 @@ async def webhook_marz(
         elif action == "user_expired":
             ttl = 300   
         else:
-            ttl = 60    
+            ttl = 600
 
         logger.debug(f'Пришли данные до Редиса {username} | {action} | {cache_key}')
         exist = await redis_cli.exists(cache_key) #type: ignore
@@ -256,7 +256,7 @@ async def webhook_marz(
 
         wrk_data: dict = { 
             "user_id": username,
-            "expire": data[0]["user"]['expire']
+            "expire": item["user"]['expire']
         }
         from_panel = item['user'].get('subscription_url')
 
@@ -316,7 +316,6 @@ async def yoo_webhook(
 
     status = event.split(".")[1]
 
-    from repositories.base import BaseRepository
     from db.models import PaymentData
     
     repo = BaseRepository(session=session, model=PaymentData)
@@ -335,7 +334,7 @@ async def yoo_webhook(
         cache: Optional[str] = await redis_cli.get(web_wrk_label)
         
         if not cache:
-            logger.error(f"Кеш умер для платежа")
+            logger.error("Кеш умер для платежа")
             return {"status": "ok"}
 
         # data_cache != 
