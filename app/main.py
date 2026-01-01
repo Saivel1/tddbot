@@ -237,7 +237,7 @@ async def webhook_marz(
         elif action == "user_expired":
             ttl = 300   
         else:
-            ttl = 600
+            ttl = 120
 
         logger.debug(f'Пришли данные до Редиса {username} | {action} | {cache_key}')
         exist = await redis_cli.exists(cache_key) #type: ignore
@@ -267,7 +267,7 @@ async def webhook_marz(
 
 
         if action == 'user_created':
-            wrk_data['id'] = data[0]['user']["proxies"]["vless"]['id']
+            wrk_data['id'] = item['user']["proxies"]["vless"]['id']
             wrk_data['type'] = 'create'
             await redis_cli.lpush( #type: ignore
                 "MARZBAN",
