@@ -3,7 +3,7 @@ from datetime import datetime
 
 class UserModel(BaseModel):
     user_id: int
-    username: str
+    username: str | None = None
     trial_used: bool
     subscription_end: datetime | None = None
 
