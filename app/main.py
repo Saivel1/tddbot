@@ -224,75 +224,74 @@ async def webhook_marz(
     logger.debug(data)
     data_str = json.dumps(data, ensure_ascii=False)
 
-    first_item = data[0]
+    for item in data:
+        username  = item.get('username')
+        action    = item.get('action')
+        cache_key = f"marzban:{username}:{action}"
 
-    username  = first_item.get('username')
-    action    = first_item.get('action')
-    cache_key = f"marzban:{username}:{action}"
+        if username is None or action is None:
+            raise HTTPException(status_code=422, detail="Missing arguments")
 
-    if username is None or action is None:
-        raise HTTPException(status_code=422, detail="Missing arguments")
+        if action == "reached_days_left":
+            ttl = 3600  
+        elif action == "user_expired":
+            ttl = 300   
+        else:
+            ttl = 60    
 
-    if action == "reached_days_left":
-        ttl = 3600  
-    elif action == "user_expired":
-        ttl = 300   
-    else:
-        ttl = 60    
+        logger.debug(f'Пришли данные до Редиса {username} | {action} | {cache_key}')
+        exist = await redis_cli.exists(cache_key) #type: ignore
+        logger.debug(exist)
 
-    logger.debug(f'Пришли данные до Редиса {username} | {action} | {cache_key}')
-    exist = await redis_cli.exists(cache_key) #type: ignore
-    logger.debug(exist)
+        if exist: #type: ignore
+            logger.info(f'Дублирование операции для {username}')
+            return {'msg': 'operation for user been'}
 
-    if exist: #type: ignore
-        logger.info(f'Дублирование операции для {username}')
-        return {'msg': 'operation for user been'}
-
-    logger.debug(action)
-    await redis_cli.set(cache_key, "1", ex=ttl) #type: ignore
-    logger.debug('Добавлен в Redis')
-
-
-    logger.debug(f'Пришёл запрос от Marzban {data_str[:20]}')
-
-    wrk_data: dict = { 
-        "user_id": username,
-        "expire": data[0]["user"]['expire']
-    }
-    from_panel = first_item['user'].get('subscription_url')
-
-    if "dns1" in from_panel:
-        wrk_data['panel'] = s.DNS2_URL
-    elif "dns2" in from_panel:
-        wrk_data['panel'] = s.DNS1_URL
+        logger.debug(action)
+        await redis_cli.set(cache_key, "1", ex=ttl) #type: ignore
+        logger.debug('Добавлен в Redis')
 
 
-    if action == 'user_created':
-        wrk_data['id'] = data[0]['user']["proxies"]["vless"]['id']
-        wrk_data['type'] = 'create'
-        await redis_cli.lpush( #type: ignore
-            "MARZBAN",
-            json.dumps(wrk_data, sort_keys=True, default=str)
-        )
+        logger.debug(f'Пришёл запрос от Marzban {data_str[:20]}')
 
-    elif action == 'user_updated':
-        wrk_data['type'] = 'modify'
-        await redis_cli.lpush( #type: ignore
-            "MARZBAN",
-            json.dumps(wrk_data, sort_keys=True, default=str)
-        )    
+        wrk_data: dict = { 
+            "user_id": username,
+            "expire": data[0]["user"]['expire']
+        }
+        from_panel = item['user'].get('subscription_url')
 
-    elif action == 'user_expired':
-        await bot.send_message(
-            chat_id=int(username),
-            text=SUB_EXPIRED_TEXT
-        )
+        if "dns1" in from_panel:
+            wrk_data['panel'] = s.DNS2_URL
+        elif "dns2" in from_panel:
+            wrk_data['panel'] = s.DNS1_URL
+
+
+        if action == 'user_created':
+            wrk_data['id'] = data[0]['user']["proxies"]["vless"]['id']
+            wrk_data['type'] = 'create'
+            await redis_cli.lpush( #type: ignore
+                "MARZBAN",
+                json.dumps(wrk_data, sort_keys=True, default=str)
+            )
+
+        elif action == 'user_updated':
+            wrk_data['type'] = 'modify'
+            await redis_cli.lpush( #type: ignore
+                "MARZBAN",
+                json.dumps(wrk_data, sort_keys=True, default=str)
+            )    
+
+    # elif action == 'user_expired':
+    #    await bot.send_message(
+    #        chat_id=int(username),
+    #        text=SUB_EXPIRED_TEXT
+    #    )
         
-    elif action == 'reached_days_left':
-        await bot.send_message(
-            chat_id=int(username),
-            text=SUB_WILL_EXPIRE
-        )
+    #elif action == 'reached_days_left':
+    #    await bot.send_message(
+    #        chat_id=int(username),
+    #        text=SUB_WILL_EXPIRE
+    #    )
 
     return {"ok": True}
 

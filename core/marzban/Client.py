@@ -119,7 +119,7 @@ Password {self.password[:3]}""")
         try:
             async with self.session.request(
                 method="GET",
-                url=f'{self.base_url}/api/users',
+                url=f'{self.base_url}/api/users?sort=-username',
                 headers=self.headers,
             ) as res:
                 
@@ -155,8 +155,10 @@ Password {self.password[:3]}""")
     async def create(self, data: CreateUserMarzbanModel):
         await self._inbounds()
         user = self.template
+
         user['username'] = data.username
         user['inbounds']['vless'] = self.inbounds
+
         if data.id: user['proxies']['vless']["id"] = data.id
         if data.expire: user["expire"] = data.expire
 

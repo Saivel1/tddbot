@@ -39,6 +39,7 @@ def queue_worker(
             # обработка задачи
             return result
     """
+
     def decorator(handler: Callable):
         @wraps(handler)
         async def wrapper(
@@ -113,13 +114,6 @@ def queue_worker(
                             # Возвращаем в очередь
                             logger.warning(f"♻️  {worker_name}: re-queuing failed task")
                             await redis_cli.lpush(queue_name, message) # type: ignore
-
-                            cnt += 1
-                            if cnt == TIME_TO_NOTIFY*10:
-                                logger.error(f"🚨 {worker_name}: unavailable for 10 minutes!")
-                                await notifyer_of_down_wrk(service=worker_name)
-                                await asyncio.sleep(10)
-                                cnt = 0
                             
                             if process_once:
                                 raise
