@@ -238,6 +238,51 @@
         .btn-platform.active i { color: var(--accent-peach); transform: scale(1.1); }
         .btn-platform.active span { color: var(--text-main); }
 
+        /* --- QR CODE CARD --- */
+        .qr-card {
+            background: var(--bg-card);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border: 1px solid var(--glass-border);
+            border-top: 1px solid var(--glass-highlight);
+            padding: 1.5rem;
+            border-radius: var(--radius-main);
+            margin-bottom: 2rem;
+            display: none; /* Скрыт по умолчанию */
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            animation: fadeInPage 0.8s ease-out forwards;
+        }
+
+        .qr-title {
+            font-family: 'Playfair Display', serif;
+            font-size: 1.2rem;
+            color: var(--accent-peach);
+            margin-bottom: 1rem;
+        }
+        
+        .qr-image-wrapper {
+            background: white; /* Обязательно белый фон для сканера! */
+            padding: 10px;
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            width: fit-content;
+        }
+
+        .qr-image-wrapper img {
+            display: block;
+            width: 180px;
+            height: 180px;
+        }
+
+        .qr-hint {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            margin-top: 1rem;
+            max-width: 250px;
+        }
+
         /* --- INSTRUCTIONS --- */
         .instruction-container { width: 100%; max-width: 500px; min-height: 250px; padding-bottom: 2rem; }
 
@@ -315,6 +360,14 @@
                 <i class="ph-bold ph-copy" id="copyIcon"></i>
             </button>
         </div>
+    </div>
+
+    <div id="desktop-qr" class="qr-card">
+        <h3 class="qr-title">Scan to connect Mobile</h3>
+        <div class="qr-image-wrapper">
+            <img src="data:image/png;base64,{{ qr_code }}" alt="QR Code">
+        </div>
+        <p class="qr-hint">Откройте приложение, нажмите "+" и сканировать Qr-code</p>
     </div>
 
     <div class="platform-grid">
@@ -420,100 +473,25 @@
         </div>
     </div>
 
-    <script>
-        // Инициализация Telegram WebApp
+<script>
         const tg = window.Telegram.WebApp;
-
-        // Сообщаем, что приложение готово
         tg.ready();
-        // Раскрываем на всю высоту
         tg.expand();
-
-        // Устанавливаем цвета хедера, чтобы сливался с фоном
-        // Берем цвет из CSS переменной --bg-dark (#050a0e)
         tg.setHeaderColor('#050a0e'); 
         tg.setBackgroundColor('#050a0e');
 
-        // 1. АВТО-ОПРЕДЕЛЕНИЕ УСТРОЙСТВА
-        function detectPlatform() {
-            const userAgent = navigator.userAgent || navigator.vendor || window.opera;
-            if (/iPad|iPhone|iPod/.test(userAgent) && !window.MSStream) {
-                return 'ios';
-            }
-            if (/android/i.test(userAgent)) {
-                return 'android';
-            }
-            return 'windows';
-        }
-
-        function showCard(id) {
-            // Вибрация при смене вкладки (Native Haptic)
-            if (tg.HapticFeedback) {
-                tg.HapticFeedback.selectionChanged();
-            }
-
-            // UI Update
-            document.querySelectorAll('.btn-platform').forEach(b => b.classList.remove('active'));
-            document.getElementById('btn-' + id).classList.add('active');
-
-            // Card Update
-            document.querySelectorAll('.instruction-card').forEach(c => c.classList.remove('active-card'));
-            
-            setTimeout(() => {
-                document.getElementById(id).classList.add('active-card');
-            }, 10);
-        }
-
-        function manualSelect(id) {
-            showCard(id);
-        }
-
-        document.addEventListener("DOMContentLoaded", () => {
-            const platform = detectPlatform();
-            showCard(platform);
-        });
-
-        // 2. ЛОГИКА КОПИРОВАНИЯ
-        function copyKey() {
-            var copyText = document.getElementById("vpnKey");
-            var btn = document.getElementById("copyBtn");
-            var icon = document.getElementById("copyIcon");
-
-            const onSuccess = () => {
-                // Вибрация успеха (Native Haptic)
-                if (tg.HapticFeedback) {
-                    tg.HapticFeedback.notificationOccurred('success');
-                }
-
-                btn.classList.add('success');
-                icon.classList.remove('ph-copy');
-                icon.classList.add('ph-check');
-
-                setTimeout(() => {
-                    btn.classList.remove('success');
-                    icon.classList.remove('ph-check');
-                    icon.classList.add('ph-copy');
-                }, 2000);
-            };
-
-            if (navigator.clipboard && window.isSecureContext) {
-                navigator.clipboard.writeText(copyText.value).then(onSuccess);
-            } else {
-                copyText.select();
-                document.execCommand("copy");
-                onSuccess();
-            }
-        }
-
-        // --- УЛУЧШЕННОЕ АВТО-ОПРЕДЕЛЕНИЕ ---
         function detectPlatform() {
             // 1. Спрашиваем напрямую у Telegram WebApp
             // Возможные значения: 'ios', 'android', 'android_x', 'macos', 'tdesktop', 'web', 'weba'
             const tgPlatform = tg.platform;
 
             // Если это Apple (iPhone, iPad или Mac)
-            if (tgPlatform === 'ios' || tgPlatform === 'macos') {
+            if (tgPlatform === 'ios') {
                 return 'ios';
+            }
+
+            if (tgPlatform === 'macos') {
+                return 'mac';
             }
             
             // Если это Android
@@ -528,15 +506,104 @@
             if (/android/i.test(userAgent)) {
                 return 'android';
             }
-            if (/iPad|iPhone|iPod|Mac/.test(userAgent) && !window.MSStream) {
+            if (/iPad|iPhone|iPod/.test(userAgent) && !window.MSStream) {
                 return 'ios';
+            }
+            if (/Mac/.test(userAgent) && !window.MSStream) {
+                return 'mac';
             }
 
             // Если ничего не подошло — считаем, что это Windows
             return 'windows';
         }
-        // -------------------------------------
 
+        function showCard(id) {
+            // Haptic
+            if (tg.HapticFeedback) tg.HapticFeedback.selectionChanged();
+
+            // 1. Управление QR-кодом
+            const qrBlock = document.getElementById('desktop-qr');
+            
+            if (id === 'desktop' || id === 'windows') {
+                // Если мы на ПК - показываем QR и инструкцию для Windows
+                if(qrBlock) qrBlock.style.display = 'flex';
+                // Активируем кнопку Windows визуально
+                highlightButton('windows');
+                // Показываем инструкцию Windows
+                showInstruction('windows');
+            } else if (id === 'mac') {
+                if(qrBlock) qrBlock.style.display = 'flex';
+                // Активируем кнопку Windows визуально
+                highlightButton('ios');
+                // Показываем инструкцию Windows
+                showInstruction('ios');
+            }
+            else {
+                // Если мы на телефоне - скрываем QR
+                if(qrBlock) qrBlock.style.display = 'none';
+                highlightButton(id);
+                showInstruction(id);
+            }
+        }
+
+        // Вспомогательная: подсветка кнопок
+        function highlightButton(platformName) {
+            document.querySelectorAll('.btn-platform').forEach(b => b.classList.remove('active'));
+            const btn = document.getElementById('btn-' + platformName);
+            if(btn) btn.classList.add('active');
+        }
+
+        // Вспомогательная: показ текста инструкции
+        function showInstruction(platformName) {
+            document.querySelectorAll('.instruction-card').forEach(c => c.classList.remove('active-card'));
+            setTimeout(() => {
+                const el = document.getElementById(platformName);
+                if(el) el.classList.add('active-card');
+            }, 10);
+        }
+
+        // Клик по кнопкам
+        function manualSelect(id) {
+            // Если кликнули, значит хотят видеть инструкцию.
+            // QR код оставляем висеть, если он был, или скрываем? 
+            // Логичнее: QR виден только если выбрана вкладка Windows (как прокси для Desktop)
+            // Но ты можешь захотеть видеть QR всегда на ПК.
+            
+            // Простая логика:
+            highlightButton(id);
+            showInstruction(id);
+        }
+
+        // Старт
+        document.addEventListener("DOMContentLoaded", () => {
+            const platform = detectPlatform();
+            showCard(platform);
+        });
+
+        function copyKey() {
+            /* Твой старый код копирования без изменений */
+            var copyText = document.getElementById("vpnKey");
+            var btn = document.getElementById("copyBtn");
+            var icon = document.getElementById("copyIcon");
+            const onSuccess = () => {
+                if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
+                btn.classList.add('success');
+                icon.classList.remove('ph-copy');
+                icon.classList.add('ph-check');
+                setTimeout(() => {
+                    btn.classList.remove('success');
+                    icon.classList.remove('ph-check');
+                    icon.classList.add('ph-copy');
+                }, 2000);
+            };
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(copyText.value).then(onSuccess);
+            } else {
+                copyText.select();
+                document.execCommand("copy");
+                onSuccess();
+            }
+        }
     </script>
-</body>
+    </body>
 </html>

@@ -8,7 +8,10 @@ from litestar.template.config import TemplateConfig
 from litestar.contrib.jinja import JinjaTemplateEngine
 from litestar.static_files import StaticFilesConfig
 from litestar.exceptions import NotFoundException, ServiceUnavailableException
-
+import io
+import qrcode
+from qrcode.constants import ERROR_CORRECT_L
+import base64
 
 
 # Bot / Telegram
@@ -151,6 +154,29 @@ templates = TemplateConfig(
     engine=JinjaTemplateEngine,
 )
 
+def generate_qr_base64(link: str) -> str:
+    # Настройки QR-кода
+    qr = qrcode.QRCode(
+        version=1,
+        error_correction=ERROR_CORRECT_L,
+        box_size=10,
+        border=2, # Тонкая рамка
+    )
+    qr.add_data(link)
+    qr.make(fit=True)
+
+    # Важно: Сканеры любят контраст. Делаем черный код на белом фоне.
+    # Если хочешь наоборот, убедись, что вокруг QR есть белая рамка (quiet zone).
+    img = qr.make_image(fill_color="black", back_color="white")
+
+    # Сохраняем в буфер памяти (не на диск)
+    buffered = io.BytesIO()
+    img.save(buffered)
+    
+    # Превращаем в строку base64
+    img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
+    return img_str
+
 
 @get("/")
 async def root() -> dict:
@@ -165,11 +191,13 @@ async def vpn_guide(
     user_data = f"{s.IN_SUB_LINK}{user_id}"
     logger.debug(f"UUID: {user_id}| Перешёл по ссылке гайда")
 
+
     return Template(
         template_name="guide.html",
         context={
             "subscription_url": user_data,
-            "title": "VPN Setup Guide"
+            "title": "VPN Setup Guide",
+            'qr_code': generate_qr_base64(link=user_data)
         }
     )
 
