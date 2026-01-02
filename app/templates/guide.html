@@ -37,304 +37,109 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            padding: 2rem 1.5rem; /* Чуть уменьшил padding сверху */
+            padding: 2rem 1.5rem;
             overflow-x: hidden;
-            opacity: 0;
-            animation: fadeInPage 0.5s ease-out forwards;
+            /* Убрал анимацию отсюда, перенес на main-app */
         }
 
-        @keyframes fadeInPage { to { opacity: 1; } }
-
-        /* --- ФОНОВЫЕ ЭФФЕКТЫ --- */
-        .ambient-bg {
-            position: fixed;
-            top: 0; left: 0; width: 100%; height: 100%;
-            z-index: -2;
-            overflow: hidden;
-        }
-        
-        /* ЗЕРНИСТОСТЬ (NOISE) */
-        .noise-overlay {
-            position: fixed;
-            top: 0; left: 0; width: 100%; height: 100%;
-            z-index: -1;
-            opacity: 0.05; 
-            pointer-events: none;
-            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='2.5' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
-            background-repeat: repeat; 
-        }
-
-        .glow-spot {
-            position: absolute;
-            border-radius: 50%;
-            filter: blur(100px);
-            opacity: 0.5;
-            animation: breathe 8s ease-in-out infinite alternate;
-        }
-        .gs-1 { top: -10%; left: -20%; width: 90vw; height: 90vw; background: radial-gradient(circle, var(--accent-orange), transparent 70%); }
-        .gs-2 { bottom: -10%; right: -20%; width: 70vw; height: 70vw; background: radial-gradient(circle, rgba(255,255,255,0.05), transparent 70%); animation-delay: -4s; }
-
-        @keyframes breathe {
-            0% { transform: scale(1); opacity: 0.4; }
-            100% { transform: scale(1.1); opacity: 0.6; }
-        }
-
-        /* --- HEADER --- */
-        header { 
-            text-align: center; 
-            margin-bottom: 2rem; 
-            position: relative;
-            margin-top: 10px; /* Отступ для красоты */
-        }
-
-        .logo-wrap {
-            margin-bottom: 10px;
-            display: inline-block;
-            animation: float 4s ease-in-out infinite;
-        }
-
-        .logo {
-            font-size: 3.5rem;
-            filter: drop-shadow(0 0 40px rgba(201, 110, 72, 0.4));
-        }
-
-        .brand {
-            font-family: 'Playfair Display', serif;
-            font-size: 2.5rem;
-            font-weight: 700;
-            background: linear-gradient(135deg, #fff 30%, var(--accent-peach) 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            letter-spacing: -0.5px;
-        }
-        
-        @keyframes float {
-            0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(-8px); }
-        }
-
-        /* --- KEY INPUT AREA --- */
-        .key-wrapper {
+        /* --- SKELETON LOADER STYLES (НОВОЕ) --- */
+        #skeleton-loader {
             width: 100%;
             max-width: 500px;
-            margin-bottom: 2rem;
-        }
-
-        .key-container {
-            background: rgba(255,255,255,0.02);
-            border: 1px solid var(--glass-border);
-            border-top: 1px solid var(--glass-highlight);
-            border-radius: 20px;
-            padding: 6px;
             display: flex;
+            flex-direction: column;
             align-items: center;
-            transition: all 0.3s ease;
-            backdrop-filter: blur(10px);
-            box-shadow: 0 4px 30px rgba(0,0,0,0.2);
+            margin-top: 10px;
         }
 
-        .key-container:focus-within {
-            border-color: var(--accent-orange);
-            box-shadow: 0 0 25px var(--accent-orange-glow);
-            transform: translateY(-2px);
+        .sk-pulse {
+            background: rgba(255, 255, 255, 0.05);
+            animation: pulse 1.5s infinite ease-in-out;
         }
 
-        .key-input {
-            background: transparent;
-            border: none;
-            color: var(--accent-peach);
-            font-family: 'Courier New', monospace;
-            font-size: 0.95rem;
-            flex-grow: 1;
-            padding: 0 1rem;
-            outline: none;
+        @keyframes pulse {
+            0% { opacity: 0.3; }
+            50% { opacity: 0.6; }
+            100% { opacity: 0.3; }
+        }
+
+        /* Формы скелета */
+        .sk-logo { width: 80px; height: 80px; border-radius: 50%; margin-bottom: 20px; }
+        .sk-title { width: 140px; height: 32px; border-radius: 8px; margin-bottom: 40px; }
+        .sk-input { width: 100%; height: 56px; border-radius: 20px; margin-bottom: 24px; }
+        .sk-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; width: 100%; margin-bottom: 24px; }
+        .sk-btn { height: 80px; border-radius: 18px; }
+        .sk-card { width: 100%; height: 300px; border-radius: 28px; }
+
+        /* --- MAIN APP WRAPPER (Скрыт сначала) --- */
+        #main-app {
+            display: none;
             width: 100%;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        .download-link {
-            display: inline-block;
-            color: #F3B699;
-            text-decoration: none;
-            font-weight: 600;
-            padding: 12px 20px;
-            background: rgba(79, 54, 42, 0.2);
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
-            border-radius: 12px;
-            margin-top: 15px;
-            border: 1px solid rgba(79, 54, 42, 0.3);
-            box-shadow: 0 2px 10px rgba(79, 54, 42, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.1);
-            position: relative;
-            overflow: hidden;
-            width: 100%;
-            text-align: center;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-
-        .download-link:hover {
-            background: rgba(79, 54, 42, 0.4);
-            border-color: #F3B699;
-            transform: translateY(-2px);
-            box-shadow: 0 8px 20px rgba(79, 54, 42, 0.25);
-            color: #fff;
-        }
-
-        .btn-copy {
-            background: var(--text-main);
-            color: var(--bg-dark);
-            border: none;
-            border-radius: 14px;
-            width: 44px;
-            height: 44px;
-            display: flex;
+            max-width: 500px;
+            flex-direction: column;
             align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            font-size: 1.2rem;
+            opacity: 0;
+            animation: fadeInPage 0.6s ease-out forwards;
         }
 
+        @keyframes fadeInPage { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* --- ФОНОВЫЕ ЭФФЕКТЫ --- */
+        .ambient-bg { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -2; overflow: hidden; }
+        .noise-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; opacity: 0.05; pointer-events: none; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='2.5' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E"); background-repeat: repeat; }
+        .glow-spot { position: absolute; border-radius: 50%; filter: blur(100px); opacity: 0.5; animation: breathe 8s ease-in-out infinite alternate; }
+        .gs-1 { top: -10%; left: -20%; width: 90vw; height: 90vw; background: radial-gradient(circle, var(--accent-orange), transparent 70%); }
+        .gs-2 { bottom: -10%; right: -20%; width: 70vw; height: 70vw; background: radial-gradient(circle, rgba(255,255,255,0.05), transparent 70%); animation-delay: -4s; }
+        @keyframes breathe { 0% { transform: scale(1); opacity: 0.4; } 100% { transform: scale(1.1); opacity: 0.6; } }
+
+        /* --- HEADER --- */
+        header { text-align: center; margin-bottom: 2rem; position: relative; margin-top: 10px; }
+        .logo-wrap { margin-bottom: 10px; display: inline-block; animation: float 4s ease-in-out infinite; }
+        .logo { font-size: 3.5rem; filter: drop-shadow(0 0 40px rgba(201, 110, 72, 0.4)); }
+        .brand { font-family: 'Playfair Display', serif; font-size: 2.5rem; font-weight: 700; background: linear-gradient(135deg, #fff 30%, var(--accent-peach) 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; letter-spacing: -0.5px; }
+        @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+
+        /* --- KEY INPUT AREA --- */
+        .key-wrapper { width: 100%; max-width: 500px; margin-bottom: 2rem; }
+        .key-container { background: rgba(255,255,255,0.02); border: 1px solid var(--glass-border); border-top: 1px solid var(--glass-highlight); border-radius: 20px; padding: 6px; display: flex; align-items: center; transition: all 0.3s ease; backdrop-filter: blur(10px); box-shadow: 0 4px 30px rgba(0,0,0,0.2); }
+        .key-container:focus-within { border-color: var(--accent-orange); box-shadow: 0 0 25px var(--accent-orange-glow); transform: translateY(-2px); }
+        .key-input { background: transparent; border: none; color: var(--accent-peach); font-family: 'Courier New', monospace; font-size: 0.95rem; flex-grow: 1; padding: 0 1rem; outline: none; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        
+        .download-link { display: inline-block; color: #F3B699; text-decoration: none; font-weight: 600; padding: 12px 20px; background: rgba(79, 54, 42, 0.2); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border-radius: 12px; margin-top: 15px; border: 1px solid rgba(79, 54, 42, 0.3); box-shadow: 0 2px 10px rgba(79, 54, 42, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.1); position: relative; overflow: hidden; width: 100%; text-align: center; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+        .download-link:hover { background: rgba(79, 54, 42, 0.4); border-color: #F3B699; transform: translateY(-2px); box-shadow: 0 8px 20px rgba(79, 54, 42, 0.25); color: #fff; }
+
+        .btn-copy { background: var(--text-main); color: var(--bg-dark); border: none; border-radius: 14px; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275); font-size: 1.2rem; }
         .btn-copy:active { transform: scale(0.9); }
         .btn-copy.success { background: var(--accent-orange); color: white; }
 
         /* --- PLATFORM SELECTOR --- */
-        .platform-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 12px;
-            width: 100%;
-            max-width: 500px;
-            margin-bottom: 1.5rem;
-        }
-
-        .btn-platform {
-            background: var(--bg-card);
-            border: 1px solid var(--glass-border);
-            border-radius: var(--radius-sm);
-            padding: 1rem 0.5rem;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            position: relative;
-            overflow: hidden;
-        }
-
+        .platform-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; width: 100%; max-width: 500px; margin-bottom: 1.5rem; }
+        .btn-platform { background: var(--bg-card); border: 1px solid var(--glass-border); border-radius: var(--radius-sm); padding: 1rem 0.5rem; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; cursor: pointer; transition: all 0.3s ease; position: relative; overflow: hidden; }
         .btn-platform i { font-size: 1.8rem; color: var(--text-muted); transition: 0.3s; }
         .btn-platform span { font-size: 0.75rem; font-weight: 500; color: var(--text-muted); transition: 0.3s; }
-
-        .btn-platform.active {
-            background: linear-gradient(180deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0) 100%);
-            border-color: var(--accent-orange);
-            box-shadow: 0 10px 30px -10px rgba(0,0,0,0.5);
-        }
-        
+        .btn-platform.active { background: linear-gradient(180deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0) 100%); border-color: var(--accent-orange); box-shadow: 0 10px 30px -10px rgba(0,0,0,0.5); }
         .btn-platform.active i { color: var(--accent-peach); transform: scale(1.1); }
         .btn-platform.active span { color: var(--text-main); }
 
         /* --- QR CODE CARD --- */
-        .qr-card {
-            background: var(--bg-card);
-            backdrop-filter: blur(24px);
-            -webkit-backdrop-filter: blur(24px);
-            border: 1px solid var(--glass-border);
-            border-top: 1px solid var(--glass-highlight);
-            padding: 1.5rem;
-            border-radius: var(--radius-main);
-            margin-bottom: 2rem;
-            display: none; /* Скрыт по умолчанию */
-            flex-direction: column;
-            align-items: center;
-            text-align: center;
-            animation: fadeInPage 0.8s ease-out forwards;
-        }
-
-        .qr-title {
-            font-family: 'Playfair Display', serif;
-            font-size: 1.2rem;
-            color: var(--accent-peach);
-            margin-bottom: 1rem;
-        }
-        
-        .qr-image-wrapper {
-            background: white; /* Обязательно белый фон для сканера! */
-            padding: 10px;
-            border-radius: 16px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
-            width: fit-content;
-        }
-
-        .qr-image-wrapper img {
-            display: block;
-            width: 180px;
-            height: 180px;
-        }
-
-        .qr-hint {
-            color: var(--text-muted);
-            font-size: 0.9rem;
-            margin-top: 1rem;
-            max-width: 250px;
-        }
+        .qr-card { background: var(--bg-card); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); border: 1px solid var(--glass-border); border-top: 1px solid var(--glass-highlight); padding: 1.5rem; border-radius: var(--radius-main); margin-bottom: 2rem; display: none; flex-direction: column; align-items: center; text-align: center; animation: fadeInPage 0.8s ease-out forwards; }
+        .qr-title { font-family: 'Playfair Display', serif; font-size: 1.2rem; color: var(--accent-peach); margin-bottom: 1rem; }
+        .qr-image-wrapper { background: white; padding: 10px; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); width: fit-content; }
+        .qr-image-wrapper img { display: block; width: 180px; height: 180px; }
+        .qr-hint { color: var(--text-muted); font-size: 0.9rem; margin-top: 1rem; max-width: 250px; }
 
         /* --- INSTRUCTIONS --- */
         .instruction-container { width: 100%; max-width: 500px; min-height: 250px; padding-bottom: 2rem; }
-
-        .instruction-card {
-            background: var(--bg-card);
-            backdrop-filter: blur(24px);
-            -webkit-backdrop-filter: blur(24px);
-            border: 1px solid var(--glass-border);
-            border-top: 1px solid var(--glass-highlight);
-            padding: 2rem;
-            border-radius: var(--radius-main);
-            display: none;
-            opacity: 0;
-            transform: translateY(20px);
-            transition: opacity 0.4s ease, transform 0.4s ease;
-        }
+        .instruction-card { background: var(--bg-card); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); border: 1px solid var(--glass-border); border-top: 1px solid var(--glass-highlight); padding: 2rem; border-radius: var(--radius-main); display: none; opacity: 0; transform: translateY(20px); transition: opacity 0.4s ease, transform 0.4s ease; }
+        .instruction-card.active-card { display: block; opacity: 1; transform: translateY(0); }
         
-        .instruction-card.active-card {
-            display: block;
-            opacity: 1;
-            transform: translateY(0);
-        }
-
-        /* Timeline Effect */
         .step-list { position: relative; padding-left: 10px; }
-
-        .step-list::before {
-            content: '';
-            position: absolute;
-            left: 14px; top: 10px; bottom: 30px;
-            width: 1px;
-            background: linear-gradient(to bottom, var(--accent-orange), rgba(255,255,255,0.05));
-            z-index: 0;
-        }
-
+        .step-list::before { content: ''; position: absolute; left: 14px; top: 10px; bottom: 30px; width: 1px; background: linear-gradient(to bottom, var(--accent-orange), rgba(255,255,255,0.05)); z-index: 0; }
         .step-item { display: flex; gap: 20px; margin-bottom: 1.8rem; position: relative; z-index: 1; }
         .step-item:last-child { margin-bottom: 0; }
-
-        .step-num {
-            min-width: 30px; height: 30px;
-            background: var(--bg-dark);
-            border: 1px solid var(--accent-orange);
-            color: var(--accent-peach);
-            border-radius: 50%;
-            display: flex; align-items: center; justify-content: center;
-            font-size: 0.85rem; font-weight: 700;
-            box-shadow: 0 0 0 4px rgba(11, 20, 26, 0.8);
-        }
-
+        .step-num { min-width: 30px; height: 30px; background: var(--bg-dark); border: 1px solid var(--accent-orange); color: var(--accent-peach); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; font-weight: 700; box-shadow: 0 0 0 4px rgba(11, 20, 26, 0.8); }
         .step-text { color: var(--text-muted); font-size: 0.95rem; line-height: 1.6; padding-top: 2px; }
         .step-text strong { color: var(--text-main); font-weight: 600; }
-
     </style>
 </head>
 <body>
@@ -345,129 +150,143 @@
     </div>
     <div class="noise-overlay"></div>
 
-    <header>
-        <div class="logo-wrap">
-            <div class="logo">🪞</div>
+    <div id="skeleton-loader">
+        <div class="sk-logo sk-pulse"></div>
+        <div class="sk-title sk-pulse"></div>
+        <div class="sk-input sk-pulse"></div>
+        <div class="sk-grid">
+            <div class="sk-btn sk-pulse"></div>
+            <div class="sk-btn sk-pulse"></div>
+            <div class="sk-btn sk-pulse"></div>
         </div>
-        <div class="brand">IV VPN</div>
-    </header>
+        <div class="sk-card sk-pulse"></div>
+    </div>
 
-    <div class="key-wrapper">
-        <div class="key-container">
-            <input type="text" class="key-input" id="vpnKey" value="{{ subscription_url }}" readonly>
+    <div id="main-app">
+        <header>
+            <div class="logo-wrap">
+                <div class="logo">🪞</div>
+            </div>
+            <div class="brand">IV VPN</div>
+        </header>
+
+        <div class="key-wrapper">
+            <div class="key-container">
+                <input type="text" class="key-input" id="vpnKey" value="{{ subscription_url }}" readonly>
+                
+                <button class="btn-copy" id="copyBtn" onclick="copyKey()">
+                    <i class="ph-bold ph-copy" id="copyIcon"></i>
+                </button>
+            </div>
+        </div>
+
+        <div id="desktop-qr" class="qr-card">
+            <h3 class="qr-title">Scan to connect Mobile</h3>
+            <div class="qr-image-wrapper">
+                <img src="data:image/png;base64,{{ qr_code }}" alt="QR Code">
+            </div>
+            <p class="qr-hint">Откройте приложение, нажмите "+" и сканировать Qr-code</p>
+        </div>
+
+        <div class="platform-grid">
+            <div class="btn-platform" id="btn-ios" onclick="manualSelect('ios')">
+                <i class="ph-fill ph-apple-logo"></i>
+                <span>iOS / Mac</span>
+            </div>
+            <div class="btn-platform" id="btn-android" onclick="manualSelect('android')">
+                <i class="ph-fill ph-android-logo"></i>
+                <span>Android</span>
+            </div>
+            <div class="btn-platform" id="btn-windows" onclick="manualSelect('windows')">
+                <i class="ph-fill ph-windows-logo"></i>
+                <span>Windows</span>
+            </div>
+        </div>
+
+        <div class="instruction-container">
             
-            <button class="btn-copy" id="copyBtn" onclick="copyKey()">
-                <i class="ph-bold ph-copy" id="copyIcon"></i>
-            </button>
-        </div>
-    </div>
-
-    <div id="desktop-qr" class="qr-card">
-        <h3 class="qr-title">Scan to connect Mobile</h3>
-        <div class="qr-image-wrapper">
-            <img src="data:image/png;base64,{{ qr_code }}" alt="QR Code">
-        </div>
-        <p class="qr-hint">Откройте приложение, нажмите "+" и сканировать Qr-code</p>
-    </div>
-
-    <div class="platform-grid">
-        <div class="btn-platform" id="btn-ios" onclick="manualSelect('ios')">
-            <i class="ph-fill ph-apple-logo"></i>
-            <span>iOS / Mac</span>
-        </div>
-        <div class="btn-platform" id="btn-android" onclick="manualSelect('android')">
-            <i class="ph-fill ph-android-logo"></i>
-            <span>Android</span>
-        </div>
-        <div class="btn-platform" id="btn-windows" onclick="manualSelect('windows')">
-            <i class="ph-fill ph-windows-logo"></i>
-            <span>Windows</span>
-        </div>
-    </div>
-
-    <div class="instruction-container">
-        
-        <div id="ios" class="instruction-card">
-            <div class="step-list">
-                <div class="step-item">
-                    <div class="step-num">1</div>
-                    <div class="step-text">Скачайте приложение <strong>v2rayTUN</strong> из App Store
-                            <a href="https://apps.apple.com/app/v2raytun/id6476628951" class="download-link" target="_blank">
-                                Открыть App Store →
-                            </a>
+            <div id="ios" class="instruction-card">
+                <div class="step-list">
+                    <div class="step-item">
+                        <div class="step-num">1</div>
+                        <div class="step-text">Скачайте приложение <strong>v2rayTUN</strong> из App Store
+                                <a href="https://apps.apple.com/app/v2raytun/id6476628951" class="download-link" target="_blank">
+                                    Открыть App Store →
+                                </a>
+                        </div>
                     </div>
-                </div>
-                <div class="step-item">
-                    <div class="step-num">2</div>
-                    <div class="step-text">Откройте приложение и нажмите кнопку <strong>"+"</strong> для добавления подписки</div>
-                </div>
-                <div class="step-item">
-                    <div class="step-num">3</div>
-                    <div class="step-text">Выберите <strong>"Import from URL"</strong> и вставьте скопированную ссылку</div>
-                </div>
-                <div class="step-item">
-                    <div class="step-num">4</div>
-                    <div class="step-text">Выберите сервер из списка и нажмите <strong>"Connect"</strong> для подключения</div>
+                    <div class="step-item">
+                        <div class="step-num">2</div>
+                        <div class="step-text">Откройте приложение и нажмите кнопку <strong>"+"</strong> для добавления подписки</div>
+                    </div>
+                    <div class="step-item">
+                        <div class="step-num">3</div>
+                        <div class="step-text">Выберите <strong>"Import from URL"</strong> и вставьте скопированную ссылку</div>
+                    </div>
+                    <div class="step-item">
+                        <div class="step-num">4</div>
+                        <div class="step-text">Выберите сервер из списка и нажмите <strong>"Connect"</strong> для подключения</div>
+                    </div>
                 </div>
             </div>
-        </div>
 
-        <div id="android" class="instruction-card">
-            <div class="step-list">
-                <div class="step-item">
-                    <div class="step-num">1</div>
-                    <div class="step-text">
-                        Скачайте приложение <strong>v2rayNG</strong> с GitHub
-                            <a href="https://github.com/2dust/v2rayNG/releases/download/1.10.31/v2rayNG_1.10.31_universal.apk" class="download-link" target="_blank">
-                                Скачать с GitHub →
-                            </a>
+            <div id="android" class="instruction-card">
+                <div class="step-list">
+                    <div class="step-item">
+                        <div class="step-num">1</div>
+                        <div class="step-text">
+                            Скачайте приложение <strong>v2rayNG</strong> с GitHub
+                                <a href="https://github.com/2dust/v2rayNG/releases/download/1.10.31/v2rayNG_1.10.31_universal.apk" class="download-link" target="_blank">
+                                    Скачать с GitHub →
+                                </a>
+                        </div>
                     </div>
-                </div>
-                <div class="step-item">
-                    <div class="step-num">2</div>
-                    <div class="step-text">Установите скачанный APK файл (разрешите установку из неизвестных источников при необходимости)</strong>.</div>
-                </div>
-                <div class="step-item">
-                    <div class="step-num">3</div>
-                    <div class="step-text">Откройте приложение и нажмите <strong>"+"</strong> в правом верхнем углу</div>
-                </div>
-                <div class="step-item">
-                    <div class="step-num">4</div>
-                    <div class="step-text">Выберите <strong>"Import config from clipboard"</strong> (предварительно скопировав ссылку)</div>
-                </div>
-                <div class="step-item">
-                    <div class="step-num">5</div>
-                    <div class="step-text">Нажмите на иконку подключения внизу экрана для активации VPN</div>
+                    <div class="step-item">
+                        <div class="step-num">2</div>
+                        <div class="step-text">Установите скачанный APK файл (разрешите установку из неизвестных источников при необходимости)</strong>.</div>
+                    </div>
+                    <div class="step-item">
+                        <div class="step-num">3</div>
+                        <div class="step-text">Откройте приложение и нажмите <strong>"+"</strong> в правом верхнем углу</div>
+                    </div>
+                    <div class="step-item">
+                        <div class="step-num">4</div>
+                        <div class="step-text">Выберите <strong>"Import config from clipboard"</strong> (предварительно скопировав ссылку)</div>
+                    </div>
+                    <div class="step-item">
+                        <div class="step-num">5</div>
+                        <div class="step-text">Нажмите на иконку подключения внизу экрана для активации VPN</div>
+                    </div>
                 </div>
             </div>
-        </div>
 
-        <div id="windows" class="instruction-card">
-            <div class="step-list">
-                <div class="step-item">
-                    <div class="step-num">1</div>
-                    <div class="step-text">
-                            Скачайте <strong>Nekoray</strong> для Windows
-                            <a href="https://github.com/MatsuriDayo/nekoray/releases/download/4.0.1/nekoray-4.0.1-2024-12-12-windows64.zip" class="download-link" target="_blank">
-                                Скачать Nekoray →
-                            </a>
+            <div id="windows" class="instruction-card">
+                <div class="step-list">
+                    <div class="step-item">
+                        <div class="step-num">1</div>
+                        <div class="step-text">
+                                Скачайте <strong>Nekoray</strong> для Windows
+                                <a href="https://github.com/MatsuriDayo/nekoray/releases/download/4.0.1/nekoray-4.0.1-2024-12-12-windows64.zip" class="download-link" target="_blank">
+                                    Скачать Nekoray →
+                                </a>
+                        </div>
                     </div>
-                </div>
-                <div class="step-item">
-                    <div class="step-num">2</div>
-                    <div class="step-text">Распакуйте архив и запустите приложение (установка не требуется)</div>
-                </div>
-                <div class="step-item">
-                    <div class="step-num">3</div>
-                    <div class="step-text">Скопируйте ссылку на подписку в буфер обмена</div>
-                </div>
-                <div class="step-item">
-                    <div class="step-num">4</div>
-                    <div class="step-text">В приложении нажмите <strong>Server → Add profile from clipboard</strong></div>
-                </div>
-                <div class="step-item">
-                    <div class="step-num">5</div>
-                    <div class="step-text">Выберите добавленный профиль и нажмите <strong>"Start"</strong> или дважды кликните по нему</div>
+                    <div class="step-item">
+                        <div class="step-num">2</div>
+                        <div class="step-text">Распакуйте архив и запустите приложение (установка не требуется)</div>
+                    </div>
+                    <div class="step-item">
+                        <div class="step-num">3</div>
+                        <div class="step-text">Скопируйте ссылку на подписку в буфер обмена</div>
+                    </div>
+                    <div class="step-item">
+                        <div class="step-num">4</div>
+                        <div class="step-text">В приложении нажмите <strong>Server → Add profile from clipboard</strong></div>
+                    </div>
+                    <div class="step-item">
+                        <div class="step-num">5</div>
+                        <div class="step-text">Выберите добавленный профиль и нажмите <strong>"Start"</strong> или дважды кликните по нему</div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -481,79 +300,47 @@
         tg.setBackgroundColor('#050a0e');
 
         function detectPlatform() {
-            // 1. Спрашиваем напрямую у Telegram WebApp
-            // Возможные значения: 'ios', 'android', 'android_x', 'macos', 'tdesktop', 'web', 'weba'
             const tgPlatform = tg.platform;
 
-            // Если это Apple (iPhone, iPad или Mac)
-            if (tgPlatform === 'ios') {
-                return 'ios';
-            }
+            if (tgPlatform === 'ios') return 'ios';
+            if (tgPlatform === 'macos') return 'mac';
+            if (tgPlatform === 'android' || tgPlatform === 'android_x') return 'android';
 
-            if (tgPlatform === 'macos') {
-                return 'mac';
-            }
-            
-            // Если это Android
-            if (tgPlatform === 'android' || tgPlatform === 'android_x') {
-                return 'android';
-            }
-
-            // Если Telegram говорит "tdesktop" (ПК) или "web" (браузер), 
-            // проверим дополнительно UserAgent, чтобы точно отличить Windows от Mac
             const userAgent = navigator.userAgent || navigator.vendor || window.opera;
-            
-            if (/android/i.test(userAgent)) {
-                return 'android';
-            }
-            if (/iPad|iPhone|iPod/.test(userAgent) && !window.MSStream) {
-                return 'ios';
-            }
-            if (/Mac/.test(userAgent) && !window.MSStream) {
-                return 'mac';
-            }
+            if (/android/i.test(userAgent)) return 'android';
+            if (/iPad|iPhone|iPod/.test(userAgent) && !window.MSStream) return 'ios';
+            if (/Mac/.test(userAgent) && !window.MSStream) return 'mac';
 
-            // Если ничего не подошло — считаем, что это Windows
             return 'windows';
         }
 
         function showCard(id) {
-            // Haptic
             if (tg.HapticFeedback) tg.HapticFeedback.selectionChanged();
 
-            // 1. Управление QR-кодом
             const qrBlock = document.getElementById('desktop-qr');
             
             if (id === 'desktop' || id === 'windows') {
-                // Если мы на ПК - показываем QR и инструкцию для Windows
                 if(qrBlock) qrBlock.style.display = 'flex';
-                // Активируем кнопку Windows визуально
                 highlightButton('windows');
-                // Показываем инструкцию Windows
                 showInstruction('windows');
             } else if (id === 'mac') {
                 if(qrBlock) qrBlock.style.display = 'flex';
-                // Активируем кнопку Windows визуально
                 highlightButton('ios');
-                // Показываем инструкцию Windows
                 showInstruction('ios');
             }
             else {
-                // Если мы на телефоне - скрываем QR
                 if(qrBlock) qrBlock.style.display = 'none';
                 highlightButton(id);
                 showInstruction(id);
             }
         }
 
-        // Вспомогательная: подсветка кнопок
         function highlightButton(platformName) {
             document.querySelectorAll('.btn-platform').forEach(b => b.classList.remove('active'));
             const btn = document.getElementById('btn-' + platformName);
             if(btn) btn.classList.add('active');
         }
 
-        // Вспомогательная: показ текста инструкции
         function showInstruction(platformName) {
             document.querySelectorAll('.instruction-card').forEach(c => c.classList.remove('active-card'));
             setTimeout(() => {
@@ -562,26 +349,30 @@
             }, 10);
         }
 
-        // Клик по кнопкам
         function manualSelect(id) {
-            // Если кликнули, значит хотят видеть инструкцию.
-            // QR код оставляем висеть, если он был, или скрываем? 
-            // Логичнее: QR виден только если выбрана вкладка Windows (как прокси для Desktop)
-            // Но ты можешь захотеть видеть QR всегда на ПК.
-            
-            // Простая логика:
             highlightButton(id);
             showInstruction(id);
         }
 
-        // Старт
-        document.addEventListener("DOMContentLoaded", () => {
+        // --- НОВАЯ ФУНКЦИЯ ЗАПУСКА ---
+        function initApp() {
+            // 1. Определяем платформу
             const platform = detectPlatform();
+            
+            // 2. Настраиваем контент (пока скрыто)
             showCard(platform);
-        });
+
+            // 3. Через 500мс убираем скелет и показываем контент
+            setTimeout(() => {
+                document.getElementById('skeleton-loader').style.display = 'none';
+                document.getElementById('main-app').style.display = 'flex';
+            }, 500);
+        }
+
+        // Запуск новой логики
+        document.addEventListener("DOMContentLoaded", initApp);
 
         function copyKey() {
-            /* Твой старый код копирования без изменений */
             var copyText = document.getElementById("vpnKey");
             var btn = document.getElementById("copyBtn");
             var icon = document.getElementById("copyIcon");
