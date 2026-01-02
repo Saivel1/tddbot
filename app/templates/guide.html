@@ -368,6 +368,24 @@
                 document.getElementById('main-app').style.display = 'flex';
             }, 500);
         }
+        function setupMainButton() {
+            // Текст кнопки
+            tg.MainButton.text = "🆘 Нужна помощь";
+            // Цвет (можно взять твой оранжевый #c96e48)
+            tg.MainButton.color = "#c96e48"; 
+            tg.MainButton.textColor = "#ffffff";
+            
+            // Показываем кнопку
+            tg.MainButton.show();
+
+            // Обработка клика
+            tg.MainButton.onClick(function() {
+                // Либо открываем ссылку на админа
+                tg.openTelegramLink('https://t.me/ivvpnhelp');
+                // Либо закрываем веб-апп и шлем боту команду
+                // tg.sendData("help_request"); 
+            });
+        }
 
         // Запуск новой логики
         document.addEventListener("DOMContentLoaded", initApp);
