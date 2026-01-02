@@ -504,6 +504,39 @@
                 onSuccess();
             }
         }
+
+        // --- УЛУЧШЕННОЕ АВТО-ОПРЕДЕЛЕНИЕ ---
+        function detectPlatform() {
+            // 1. Спрашиваем напрямую у Telegram WebApp
+            // Возможные значения: 'ios', 'android', 'android_x', 'macos', 'tdesktop', 'web', 'weba'
+            const tgPlatform = tg.platform;
+
+            // Если это Apple (iPhone, iPad или Mac)
+            if (tgPlatform === 'ios' || tgPlatform === 'macos') {
+                return 'ios';
+            }
+            
+            // Если это Android
+            if (tgPlatform === 'android' || tgPlatform === 'android_x') {
+                return 'android';
+            }
+
+            // Если Telegram говорит "tdesktop" (ПК) или "web" (браузер), 
+            // проверим дополнительно UserAgent, чтобы точно отличить Windows от Mac
+            const userAgent = navigator.userAgent || navigator.vendor || window.opera;
+            
+            if (/android/i.test(userAgent)) {
+                return 'android';
+            }
+            if (/iPad|iPhone|iPod|Mac/.test(userAgent) && !window.MSStream) {
+                return 'ios';
+            }
+
+            // Если ничего не подошло — считаем, что это Windows
+            return 'windows';
+        }
+        // -------------------------------------
+
     </script>
 </body>
 </html>
