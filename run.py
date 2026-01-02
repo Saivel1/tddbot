@@ -12,13 +12,13 @@ async def setup_webhook():
     
     try:
         # Удалить старый webhook
-        await bot.delete_webhook(drop_pending_updates=True)
+        await bot.delete_webhook(drop_pending_updates=False)
         print("✅ Old webhook deleted")
         
         await asyncio.sleep(2)  # Подождать перед новым
         
         # Установить новый
-        await bot.set_webhook(url=webhook_url, drop_pending_updates=True)
+        await bot.set_webhook(url=webhook_url, drop_pending_updates=False)
         print(f"✅ Webhook set: {webhook_url}")
         
         # Проверить
