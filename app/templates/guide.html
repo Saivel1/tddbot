@@ -354,20 +354,6 @@
             showInstruction(id);
         }
 
-        // --- НОВАЯ ФУНКЦИЯ ЗАПУСКА ---
-        function initApp() {
-            // 1. Определяем платформу
-            const platform = detectPlatform();
-            
-            // 2. Настраиваем контент (пока скрыто)
-            showCard(platform);
-
-            // 3. Через 500мс убираем скелет и показываем контент
-            setTimeout(() => {
-                document.getElementById('skeleton-loader').style.display = 'none';
-                document.getElementById('main-app').style.display = 'flex';
-            }, 500);
-        }
         function setupMainButton() {
             // Текст кнопки
             tg.MainButton.text = "🆘 Нужна помощь";
@@ -386,6 +372,23 @@
                 // tg.sendData("help_request"); 
             });
         }
+
+        // --- НОВАЯ ФУНКЦИЯ ЗАПУСКА ---
+        function initApp() {
+            setupMainButton();
+            // 1. Определяем платформу
+            const platform = detectPlatform();
+            
+            // 2. Настраиваем контент (пока скрыто)
+            showCard(platform);
+
+            // 3. Через 500мс убираем скелет и показываем контент
+            setTimeout(() => {
+                document.getElementById('skeleton-loader').style.display = 'none';
+                document.getElementById('main-app').style.display = 'flex';
+            }, 500);
+        }
+        
 
         // Запуск новой логики
         document.addEventListener("DOMContentLoaded", initApp);
