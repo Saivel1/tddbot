@@ -306,16 +306,22 @@ async def webhook_marz(
             )    
 
         elif action == 'user_expired':
-           await bot.send_message(
-               chat_id=int(username),
-               text=SUB_EXPIRED_TEXT
-           )
+            try:
+                await bot.send_message(
+                    chat_id=int(username),
+                    text=SUB_EXPIRED_TEXT
+                )
+            except:
+                pass
             
         elif action == 'reached_days_left':
-           await bot.send_message(
-               chat_id=int(username),
-               text=SUB_WILL_EXPIRE
-           )
+            try:
+                await bot.send_message(
+                    chat_id=int(username),
+                    text=SUB_WILL_EXPIRE
+                )
+            except:
+                pass
 
     return {"ok": True}
 
