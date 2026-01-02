@@ -155,7 +155,7 @@ async def blank_pay(message: Message):
     if user_id != s.ADMIN_ID:
         return
 
-    data = await create_order(amount=50, user_id=s.ADMIN_ID)
+    data = await create_order(amount=100, user_id=s.ADMIN_ID)
     if data is None:
         return
     
