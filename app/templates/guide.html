@@ -315,7 +315,9 @@
         }
 
         function showCard(id) {
-            if (tg.HapticFeedback) tg.HapticFeedback.selectionChanged();
+            if (tg.HapticFeedback) {
+                tg.HapticFeedback.selectionChanged()
+            };
 
             const qrBlock = document.getElementById('desktop-qr');
             
@@ -398,7 +400,10 @@
             var btn = document.getElementById("copyBtn");
             var icon = document.getElementById("copyIcon");
             const onSuccess = () => {
-                if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
+                if (tg.HapticFeedback) {
+                    tg.HapticFeedback.notificationOccurred('success');
+                }
+                
                 btn.classList.add('success');
                 icon.classList.remove('ph-copy');
                 icon.classList.add('ph-check');
