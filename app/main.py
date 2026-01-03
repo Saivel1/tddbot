@@ -413,6 +413,9 @@ async def process_sub(uuid: str) -> Redirect:
                     timeout=timeout,
                     connector=connector
                 ) as session:
+                    if link is None:
+                        return (False, link)
+
                     response = await session.get(url=link)
                     
                     # Успех
