@@ -1,8 +1,8 @@
 import json
 
-from aiogram import F
+from aiogram import F, Bot
 from aiogram.filters import Command
-from aiogram.types import CallbackQuery, InlineKeyboardButton, Message
+from aiogram.types import CallbackQuery, InlineKeyboardButton, Message, LabeledPrice, PreCheckoutQuery
 from redis.asyncio import Redis
 
 from bot_in import dp
@@ -162,3 +162,42 @@ async def blank_pay(message: Message):
     await message.answer(
         text=f"Ссылка \n {data[0]} \n\n Payment_id {data[1]}"
     )
+
+
+@dp.message(Command("stars"))
+async def get_stars(message: Message):
+    user_id = message.from_user.id #type: ignore
+
+    if user_id != s.ADMIN_ID:
+        return
+
+    text = message.text
+
+    amount = text.replace("/stars ", "") #type: ignore
+    try:
+        amount = int(amount)
+    except Exception as e:
+        logger.error(e)
+        await message.answer(
+            "Нужно ввести сумму, либо она неправильно отработала"
+        )
+        return
+    
+    try:
+        prices = [LabeledPrice(label="Оплата", amount=amount)]
+        await message.answer_invoice(
+            title="💫 Подписка на мес.",
+            description='Для оформления подписки необходимо произвести оплату.',
+            payload="payed",
+            currency="XTR",
+            prices=prices,
+            start_parameter="premium_payment"
+        )
+
+    except Exception as e:
+        logger.error(f"Ошибка создания платежа для пользователя {user_id}: {e}")
+
+    
+@dp.pre_checkout_query()
+async def pre_checkout_query_once(pre_checkout: PreCheckoutQuery, bot: Bot):
+   await bot.answer_pre_checkout_query(pre_checkout.id, ok=True)

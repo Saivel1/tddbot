@@ -1,62 +1,63 @@
 # Framework / web
-import aiohttp
-from litestar import Litestar, Response, get, post, Request
-from litestar.exceptions import HTTPException
-from litestar.di import Provide
-from litestar.response import Template, Redirect
-from litestar.template.config import TemplateConfig
-from litestar.contrib.jinja import JinjaTemplateEngine
-from litestar.static_files import StaticFilesConfig
-from litestar.exceptions import NotFoundException, ServiceUnavailableException
-import io
-import qrcode
-from qrcode.constants import ERROR_CORRECT_L
+import asyncio
 import base64
+import io
 
+# Stdlib
+import json
+from contextlib import asynccontextmanager, suppress
+from pathlib import Path
+from typing import AsyncGenerator, Optional
+
+import aiohttp
+import qrcode
 
 # Bot / Telegram
 from aiogram.types import Update
-from bot_in import bot, dp
-from misc.bot_setup import SUB_EXPIRED_TEXT, SUB_WILL_EXPIRE
+from litestar import Litestar, Request, Response, get, post
+from litestar.contrib.jinja import JinjaTemplateEngine
+from litestar.di import Provide
+from litestar.exceptions import (
+    HTTPException,
+    NotFoundException,
+    ServiceUnavailableException,
+)
+from litestar.response import Redirect, Template
+from litestar.static_files import StaticFilesConfig
+from litestar.template.config import TemplateConfig
 
-# Config & logging
-from config import settings as s
-from logger_setup import logger
-
-# Database / ORM
-from sqlalchemy.ext.asyncio import AsyncSession
-from db.database import async_session_maker
-from db.models import Base
-from midllewares.db import DatabaseMiddleware
-from repositories.base import BaseRepository
+# Validation / schemas
+from pydantic import ValidationError
+from qrcode.constants import ERROR_CORRECT_L
 
 # Redis / cache
 from redis.asyncio import Redis
 
-# Validation / schemas
-from pydantic import ValidationError
+# Database / ORM
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from bot_in import bot, dp
+
+# Config & logging
+from config import settings as s
+from db.database import async_session_maker
+from db.models import Base
+from logger_setup import logger
+from midllewares.db import DatabaseMiddleware
+from misc.bot_setup import SUB_EXPIRED_TEXT, SUB_WILL_EXPIRE
 
 # Utils / workers
 from misc.utils import (
     db_worker,
+    get_links_of_panels,
     marzban_worker,
-    trial_activation_worker,
     nightly_cache_refresh_worker,
-    pub_listner,
-    worker_exsists,
     payment_wrk,
-    get_links_of_panels
+    pub_listner,
+    trial_activation_worker,
+    worker_exsists,
 )
-
-# Stdlib
-import json
-import asyncio
-from contextlib import asynccontextmanager
-from typing import AsyncGenerator, Optional
-from pathlib import Path
-
-
-
+from repositories.base import BaseRepository
 
 import handlers.start
 import handlers.instructions
@@ -71,18 +72,16 @@ async def lifespan(app: Litestar):
     """Lifecycle"""
     
     # ✅ Инициализируем Redis
-    from app.redis_client import init_redis, close_redis
+    from app.redis_client import close_redis, init_redis
     
     redis = await init_redis()
     await redis.ping()  #type: ignore
     print("✅ Redis connected")
     
-    # try:
+    # with suppress(Exception):
     #     async with engine.begin() as conn:
     #         await conn.run_sync(Base.metadata.create_all)
-    # except:
-    #     pass
-    # print("✅ Database tables created")
+    print("✅ Database tables created")
 
 
     # ✅ Создаём долгоживущую сессию для воркеров
@@ -306,22 +305,18 @@ async def webhook_marz(
             )    
 
         elif action == 'user_expired':
-            try:
+            with suppress(Exception):
                 await bot.send_message(
                     chat_id=int(username),
                     text=SUB_EXPIRED_TEXT
                 )
-            except:
-                pass
             
         elif action == 'reached_days_left':
-            try:
+            with suppress(Exception):
                 await bot.send_message(
                     chat_id=int(username),
                     text=SUB_WILL_EXPIRE
                 )
-            except:
-                pass
 
     return {"ok": True}
 
