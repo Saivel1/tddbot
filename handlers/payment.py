@@ -199,6 +199,6 @@ async def get_stars(message: Message):
 
     
 @dp.pre_checkout_query()
-async def pre_checkout_query_once(pre_checkout: PreCheckoutQuery, bot: Bot):
+async def pre_checkout_query_once(pre_checkout: PreCheckoutQuery):
    logger.info("Отправили pre-checkout")
-   await bot.answer_pre_checkout_query(pre_checkout.id, ok=True)
+   await pre_checkout.answer(ok=True)

@@ -18,7 +18,11 @@ async def setup_webhook():
         await asyncio.sleep(2)  # Подождать перед новым
         
         # Установить новый
-        await bot.set_webhook(url=webhook_url, drop_pending_updates=False)
+        await bot.set_webhook(
+            url=webhook_url, 
+            drop_pending_updates=False,
+            allowed_updates=["message", "callback_query", "pre_checkout_query", "successful_payment"]
+        )
         print(f"✅ Webhook set: {webhook_url}")
         
         # Проверить
