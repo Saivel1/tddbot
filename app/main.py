@@ -291,8 +291,9 @@ async def webhook_marz(
             wrk_data['panel'] = s.DNS1_URL
 
 
+        wrk_data['id'] = item['user']["proxies"]["vless"]['id']
+
         if action == 'user_created':
-            wrk_data['id'] = item['user']["proxies"]["vless"]['id']
             await redis_cli.lpush( #type: ignore
                 "MARZBAN",
                 json.dumps(wrk_data, sort_keys=True, default=str)
@@ -304,19 +305,19 @@ async def webhook_marz(
                 json.dumps(wrk_data, sort_keys=True, default=str)
             )    
 
-        elif action == 'user_expired':
-            with suppress(Exception):
-                await bot.send_message(
-                    chat_id=int(username),
-                    text=SUB_EXPIRED_TEXT
-                )
+        # elif action == 'user_expired':
+        #     with suppress(Exception):
+        #         await bot.send_message(
+        #             chat_id=int(username),
+        #             text=SUB_EXPIRED_TEXT
+        #         )
             
-        elif action == 'reached_days_left':
-            with suppress(Exception):
-                await bot.send_message(
-                    chat_id=int(username),
-                    text=SUB_WILL_EXPIRE
-                )
+        # elif action == 'reached_days_left':
+        #     with suppress(Exception):
+        #         await bot.send_message(
+        #             chat_id=int(username),
+        #             text=SUB_WILL_EXPIRE
+        #         )
 
     return {"ok": True}
 
