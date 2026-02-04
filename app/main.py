@@ -1,5 +1,6 @@
 # Framework / web
 import asyncio
+from asyncio import Task
 import base64
 import io
 
@@ -88,7 +89,7 @@ async def lifespan(app: Litestar):
     worker_session = async_session_maker()
     
     # ✅ СОХРАНЯЕМ ссылки на задачи
-    worker_tasks = [
+    worker_tasks: list[Task] = [
         asyncio.create_task(db_worker(redis_cli=redis, session=worker_session), name="db_worker"), # type: ignore
         asyncio.create_task(trial_activation_worker(redis_cli=redis, session=worker_session), name="trial_worker"),
         asyncio.create_task(nightly_cache_refresh_worker(redis_cache=redis, session_maker=async_session_maker), name="cache_worker"),
@@ -305,19 +306,19 @@ async def webhook_marz(
                 json.dumps(wrk_data, sort_keys=True, default=str)
             )    
 
-        # elif action == 'user_expired':
-        #     with suppress(Exception):
-        #         await bot.send_message(
-        #             chat_id=int(username),
-        #             text=SUB_EXPIRED_TEXT
-        #         )
+        elif action == 'user_expired':
+            with suppress(Exception):
+                await bot.send_message(
+                    chat_id=int(username),
+                    text=SUB_EXPIRED_TEXT
+                )
             
-        # elif action == 'reached_days_left':
-        #     with suppress(Exception):
-        #         await bot.send_message(
-        #             chat_id=int(username),
-        #             text=SUB_WILL_EXPIRE
-        #         )
+        elif action == 'reached_days_left':
+            with suppress(Exception):
+                await bot.send_message(
+                    chat_id=int(username),
+                    text=SUB_WILL_EXPIRE
+                )
 
     return {"ok": True}
 
