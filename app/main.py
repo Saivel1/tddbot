@@ -449,6 +449,10 @@ async def process_sub(uuid: str) -> Redirect:
     
     # Проверяем все панели параллельно
     results = await asyncio.gather(*[check_panel(link) for link in links])
+
+    for is_available, link in results:
+        if "dns1" in link and is_available:
+            results = [(is_available, link)]
     
     # Выбираем первую рабочую
     for is_available, link in results:
