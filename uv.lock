@@ -96,6 +96,20 @@ wheels = [
 ]
 
 [[package]]
+name = "alembic"
+version = "1.18.3"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "mako" },
+    { name = "sqlalchemy" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/79/41/ab8f624929847b49f84955c594b165855efd829b0c271e1a8cac694138e5/alembic-1.18.3.tar.gz", hash = "sha256:1212aa3778626f2b0f0aa6dd4e99a5f99b94bd25a0c1ac0bba3be65e081e50b0", size = 2052564, upload-time = "2026-01-29T20:24:15.124Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/45/8e/d79281f323e7469b060f15bd229e48d7cdd219559e67e71c013720a88340/alembic-1.18.3-py3-none-any.whl", hash = "sha256:12a0359bfc068a4ecbb9b3b02cf77856033abfdb59e4a5aca08b7eacd7b74ddd", size = 262282, upload-time = "2026-01-29T20:24:17.488Z" },
+]
+
+[[package]]
 name = "annotated-types"
 version = "0.7.0"
 source = { registry = "https://pypi.org/simple" }
@@ -739,6 +753,15 @@ wheels = [
 ]
 
 [[package]]
+name = "izulu"
+version = "0.50.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/d0/58/6d6335c78b7ade54d8a6c6dbaa589e5c21b3fd916341d5a16f774c72652a/izulu-0.50.0.tar.gz", hash = "sha256:cc8e252d5e8560c70b95380295008eeb0786f7b745a405a40d3556ab3252d5f5", size = 48558, upload-time = "2025-03-24T15:52:21.51Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/4a/9f/bf9d33546bbb6e5e80ebafe46f90b7d8b4a77410b7b05160b0ca8978c15a/izulu-0.50.0-py3-none-any.whl", hash = "sha256:4e9ae2508844e7c5f62c468a8b9e2deba2f60325ef63f01e65b39fd9a6b3fab4", size = 18095, upload-time = "2025-03-24T15:52:19.667Z" },
+]
+
+[[package]]
 name = "jinja2"
 version = "3.1.6"
 source = { registry = "https://pypi.org/simple" }
@@ -832,6 +855,18 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/e6/08/da7c2cc7398cc0376e8da599d6330a437c01d3eace2f2365f300e0f3f758/magic_filter-1.0.12.tar.gz", hash = "sha256:4751d0b579a5045d1dc250625c4c508c18c3def5ea6afaf3957cb4530d03f7f9", size = 11071, upload-time = "2023-10-01T12:33:19.006Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/cc/75/f620449f0056eff0ec7c1b1e088f71068eb4e47a46eb54f6c065c6ad7675/magic_filter-1.0.12-py3-none-any.whl", hash = "sha256:e5929e544f310c2b1f154318db8c5cdf544dd658efa998172acd2e4ba0f6c6a6", size = 11335, upload-time = "2023-10-01T12:33:17.711Z" },
+]
+
+[[package]]
+name = "mako"
+version = "1.3.10"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "markupsafe" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/9e/38/bd5b78a920a64d708fe6bc8e0a2c075e1389d53bef8413725c63ba041535/mako-1.3.10.tar.gz", hash = "sha256:99579a6f39583fa7e5630a28c3c1f440e4e97a414b80372649c0ce338da2ea28", size = 392474, upload-time = "2025-04-10T12:44:31.16Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/87/fb/99f81ac72ae23375f22b7afdb7642aba97c00a713c217124420147681a2f/mako-1.3.10-py3-none-any.whl", hash = "sha256:baef24a52fc4fc514a0887ac600f9f1cff3d82c61d4d700a1fa84d597b88db59", size = 78509, upload-time = "2025-04-10T12:50:53.297Z" },
 ]
 
 [[package]]
@@ -1288,6 +1323,15 @@ wheels = [
 ]
 
 [[package]]
+name = "pycron"
+version = "3.2.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/8e/5d/340be12ae4a69c33102dfb6ddc1dc6e53e69b2d504fa26b5d34a472c3057/pycron-3.2.0.tar.gz", hash = "sha256:e125a28aca0295769541a40633f70b602579df48c9cb357c36c28d2628ba2b13", size = 4248, upload-time = "2025-06-05T13:24:12.636Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/f0/76/caf316909f4545e7158e0e1defd8956a1da49f4af04f5d16b18c358dfeac/pycron-3.2.0-py3-none-any.whl", hash = "sha256:6d2349746270bd642b71b9f7187cf13f4d9ee2412b4710396a507b5fe4f60dac", size = 4904, upload-time = "2025-06-05T13:24:11.477Z" },
+]
+
+[[package]]
 name = "pydantic"
 version = "2.11.10"
 source = { registry = "https://pypi.org/simple" }
@@ -1636,12 +1680,53 @@ wheels = [
 ]
 
 [[package]]
+name = "taskiq"
+version = "0.12.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "aiohttp" },
+    { name = "anyio" },
+    { name = "izulu" },
+    { name = "packaging" },
+    { name = "pycron" },
+    { name = "pydantic" },
+    { name = "taskiq-dependencies" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/92/cf/c4a47be05d85754f3e0ecc7b72131249adc067ea37517054459e94268fb1/taskiq-0.12.1.tar.gz", hash = "sha256:338dcf58eaca327e511a9380b2185bfa6a415dd79a5cf144546a2dbb95459298", size = 60536, upload-time = "2025-12-07T16:07:43.561Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/4c/e4/a2fda3bcbb8b61108dc8e9db1a2d19a23578953db73e981f66b9d44f1207/taskiq-0.12.1-py3-none-any.whl", hash = "sha256:a8ade45e2e23edbadb972a88dec44e68c7daef83383d01fa3af48594a24a712a", size = 90668, upload-time = "2025-12-07T16:07:42.296Z" },
+]
+
+[[package]]
+name = "taskiq-dependencies"
+version = "1.5.7"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/47/90/47a627696e53bfdcacabc3e8c05b73bf1424685bcb5f17209cb8b12da1bf/taskiq_dependencies-1.5.7.tar.gz", hash = "sha256:0d3b240872ef152b719153b9526d866d2be978aeeaea6600e878414babc2dcb4", size = 14875, upload-time = "2025-02-26T22:07:39.876Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/99/6d/4a012f2de002c2e93273f5e7d3e3feea02f7fdbb7b75ca2ca1dd10703091/taskiq_dependencies-1.5.7-py3-none-any.whl", hash = "sha256:6fcee5d159bdb035ef915d4d848826169b6f06fe57cc2297a39b62ea3e76036f", size = 13801, upload-time = "2025-02-26T22:07:38.622Z" },
+]
+
+[[package]]
+name = "taskiq-redis"
+version = "1.2.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "redis" },
+    { name = "taskiq" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/64/35/58ec34c74c888235ecea3dba3b0e74a3902a6b70f0cd56fffa0012f03a61/taskiq_redis-1.2.1.tar.gz", hash = "sha256:8a6b7d3187798e00f27fca6d4a9d73efc559ed88e3c3c571647c9163add7af47", size = 14376, upload-time = "2025-12-19T17:36:03.45Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/99/1e/d4202cdb98bf2df087dd303df35d0faf2528f985d62aa685cce994584c4f/taskiq_redis-1.2.1-py3-none-any.whl", hash = "sha256:caf91241a23cd77c4304e455a775caa08c5005b48b62fc613b4dd5b44a515488", size = 20570, upload-time = "2025-12-19T17:36:02.142Z" },
+]
+
+[[package]]
 name = "tdd-bot"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
     { name = "aiogram" },
     { name = "aiosqlite" },
+    { name = "alembic" },
     { name = "asyncio" },
     { name = "asyncpg" },
     { name = "docker" },
@@ -1657,6 +1742,8 @@ dependencies = [
     { name = "qrcode", extra = ["pil"] },
     { name = "redis" },
     { name = "sqlalchemy" },
+    { name = "taskiq" },
+    { name = "taskiq-redis" },
     { name = "uvicorn" },
     { name = "yookassa" },
 ]
@@ -1665,6 +1752,7 @@ dependencies = [
 requires-dist = [
     { name = "aiogram", specifier = ">=3.22.0" },
     { name = "aiosqlite", specifier = ">=0.21.0" },
+    { name = "alembic", specifier = ">=1.18.3" },
     { name = "asyncio", specifier = ">=4.0.0" },
     { name = "asyncpg", specifier = ">=0.31.0" },
     { name = "docker", specifier = ">=7.1.0" },
@@ -1680,6 +1768,8 @@ requires-dist = [
     { name = "qrcode", extras = ["pil"], specifier = ">=8.2" },
     { name = "redis", specifier = ">=7.1.0" },
     { name = "sqlalchemy", specifier = ">=2.0.44" },
+    { name = "taskiq", specifier = ">=0.12.1" },
+    { name = "taskiq-redis", specifier = ">=1.2.1" },
     { name = "uvicorn", specifier = ">=0.38.0" },
     { name = "yookassa", specifier = ">=3.8.0" },
 ]
