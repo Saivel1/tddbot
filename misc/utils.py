@@ -4,6 +4,7 @@
 
 # Database / ORM
 import asyncio
+from keyboards.markup import MainKeyboard
 
 # Stdlib
 import json
@@ -553,11 +554,16 @@ async def trial_activation_worker(
     await redis_cli.set(f"USER_DATA:{user_id}", json.dumps(data_for_cache, default=str), ex=7200)
     logger.info(f"✅ Trial activated: user_id={user_id}")
 
+    TEXT = ("<b>Пробный период активирован ✅</b>\n\n"
+            "Чтобы начать пользоваться, перейдите в раздел с инструкцией и "
+            "посмотрите короткую инструкцию по установке:")
+
     # Уведомление пользователя
     await bot.send_message(
         chat_id=int(user_id),
-        text="Пробный период активирован ✅",
-        reply_markup=BackButton.back_start()
+        text=TEXT,
+        reply_markup=MainKeyboard.main_keyboard_without_pay_back(),
+        parse_mode="HTML"
     )
 
 
@@ -1094,11 +1100,22 @@ async def payment_wrk(
     
     logger.info(f"✅ Payment processed: user_id={data['user_id']}, amount={data['amount']}₽, order_id={data['order_id']}")
 
+    SUCCESS_PAYMENT_TXT = (
+        "✅ <b>Оплата прошла успешно!</b>\n\n"
+        f"Счет на сумму <b>{data['amount']} ₽</b> подтвержден. "
+        "Ваша подписка обновлена и готова к работе.\n\n"
+        "<b>Как подключиться:</b>\n"
+        "1. Перейдите в <b>🔗 Подписки и ссылки</b>\n"
+        "2. Скопируйте персональный ключ\n"
+        "3. Если возникли вопросы — загляните в <b>📱 Инструкция</b>"
+    )   
+
     # Уведомления
     await bot.send_message(
         chat_id=int(data['user_id']),
-        text=f"Оплата прошла успешно на сумму {data['amount']}",
-        reply_markup=BackButton.back_start()
+        text=SUCCESS_PAYMENT_TXT,
+        reply_markup=MainKeyboard.main_keyboard_without_pay_back(),
+        parse_mode="HTML"
     )
 
     await bot.send_message(

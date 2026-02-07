@@ -19,6 +19,21 @@ class MainKeyboard:
             [InlineKeyboardButton(text="🔗 Подписка и ссылки", callback_data="subs")],
             [InlineKeyboardButton(text="📱 Инструкция", callback_data="instruction")]
         ])
+    
+    @staticmethod
+    def main_keyboard_without_pay():
+        return InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="🔗 Подписка и ссылки", callback_data="subs")],
+            [InlineKeyboardButton(text="📱 Инструкция", callback_data="instruction")]
+        ])
+    
+    @staticmethod
+    def main_keyboard_without_pay_back():
+        return InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="🔗 Подписка и ссылки", callback_data="subs")],
+            [InlineKeyboardButton(text="📱 Инструкция", callback_data="instruction")],
+            [InlineKeyboardButton(text="⬅️ Назад", callback_data="start_menu")]
+        ])
 
 
 class Instruction:
