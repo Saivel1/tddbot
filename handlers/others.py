@@ -1,5 +1,5 @@
 from bot_in import dp
-from aiogram.types import CallbackQuery
+from aiogram.types import CallbackQuery, Message
 from logger_setup import logger
 
 
@@ -10,3 +10,7 @@ async def others_to_start(callback: CallbackQuery):
     await callback.message.answer( #type: ignore
         text="Нажмите /start"
     )
+
+@dp.message()
+async def others_to_start_message(message: Message):
+    logger.info(f'Пользователь {message.from_user.id} написал {message.text}')
