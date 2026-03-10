@@ -42,7 +42,7 @@ from bot_in import bot, dp
 # Config & logging
 from config import settings as s
 from db.database import async_session_maker
-from db.models import Base
+from db.models import Base  # noqa: F401
 from logger_setup import logger
 from midllewares.db import DatabaseMiddleware
 from misc.bot_setup import SUB_EXPIRED_TEXT, SUB_WILL_EXPIRE
@@ -65,7 +65,31 @@ import handlers.instructions
 import handlers.payment
 import handlers.trial
 import handlers.sub_n_links
-import handlers.others
+import handlers.others  # noqa: F401
+from typing import Any, Awaitable, Callable
+
+from aiogram import BaseMiddleware
+from aiogram.types import TelegramObject
+
+
+BLACK_LIST = [7574420053]
+
+
+class DbMiddleware(BaseMiddleware):
+
+    async def __call__(
+        self,
+        handler: Callable[[TelegramObject, dict[str, Any]], Awaitable[Any]],
+        event: TelegramObject,
+        data: dict[str, Any]
+    ) -> Any:
+        event_type = event.callback_query if event.callback_query else event.message #type: ignore
+        user_id = event_type.from_user.id #type: ignore
+        if user_id in BLACK_LIST:
+            return
+        return await handler(event, data)
+
+
 
 
 @asynccontextmanager
@@ -144,6 +168,7 @@ async def provide_db() -> AsyncGenerator[AsyncSession, None]:
             await session.close()
 
 
+dp.update.middleware(DbMiddleware())
 dp.message.middleware(DatabaseMiddleware(session_maker=async_session_maker))
 dp.callback_query.middleware(DatabaseMiddleware(session_maker=async_session_maker))
 
